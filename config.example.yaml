@@ -1,0 +1,22 @@
+# Claude Harness — example config
+# Copy to config/config.yaml and fill in values
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  allowed_users:
+    - 123456789  # Your Telegram user ID
+
+cron:
+  - name: heartbeat
+    schedule: "*/30 * * * *"
+    prompt: "Run a quick health check. Verify vault is accessible."
+    output: log
+
+webhooks: []
+
+queue:
+  max_concurrent: 1
+  timeout_seconds: 300
+
+browser:
+  enabled: false

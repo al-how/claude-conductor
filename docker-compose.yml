@@ -1,0 +1,24 @@
+services:
+  claude-harness:
+    build: .
+    container_name: claude-harness
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - vault:/vault
+      - ./config:/config:ro
+      - data:/data
+      - claude-config:/home/claude/.claude
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+volumes:
+  vault:
+  data:
+  claude-config:

@@ -1,24 +1,19 @@
 services:
   claude-conductor:
-    build: .
+    image: ghcr.io/al-how/claude-conductor:latest
     container_name: claude-conductor
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     volumes:
-      - vault:/vault
-      - ./config:/config:ro
-      - data:/data
-      - claude-config:/home/claude/.claude
-    environment:
-      - NODE_ENV=production
-      - LOG_LEVEL=info
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-
-volumes:
-  vault:
-  data:
-  claude-config:
+      # Mount your Obsidian vault here
+      - ./vault:/vault
+      # Mount your configuration file
+      # If you have a config directory:
+      # - ./config:/config
+      # If you have a single config file:
+      - ./config.local.yaml:/config/config.yaml
+      # Mount data directory for logs and DB
+      - ./data:/data
+      # Mount .claude directory for credentials and memory
+      - ./.claude:/home/claude/.claude
+    # Network mode host might be needed for some use cases
+    # network_mode: host

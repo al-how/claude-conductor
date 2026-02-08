@@ -12,10 +12,8 @@ export class Dispatcher {
     private queue: Task[] = [];
     private processing: boolean = false;
     private logger?: Logger;
-    private maxConcurrent: number = 1;
 
-    constructor(maxConcurrent: number = 1, logger?: Logger) {
-        this.maxConcurrent = maxConcurrent;
+    constructor(_maxConcurrent: number = 1, logger?: Logger) {
         this.logger = logger;
     }
 

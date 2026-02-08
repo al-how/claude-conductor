@@ -8,7 +8,9 @@
       "Bash(certutil -decode:*)",
       "Bash(node -e:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
     ]
   }
 }

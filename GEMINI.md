@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Claude Harness is a Docker container that wraps Claude Code CLI with scheduling, messaging, browser automation, and webhook capabilities. It runs on Unraid and provides infrastructure around Claude Code — it does not contain AI logic itself.
+Claude Conductor is a Docker container that wraps Claude Code CLI with scheduling, messaging, browser automation, and webhook capabilities. It runs on Unraid and provides infrastructure around Claude Code — it does not contain AI logic itself.
 
-The full design spec is at `docs/Claude Harness.md`.
+The full design spec is at `docs/Claude Conductor.md`.
 
 ## Architecture
 

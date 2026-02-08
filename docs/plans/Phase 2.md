@@ -2,7 +2,7 @@
 
 > **Goal:** Implement the Telegram Bot interface, the centralized task dispatcher, and the SQLite conversation history storage.
 
-**Spec:** `docs/Claude Harness.md`
+**Spec:** `docs/Claude Conductor.md`
 
 ## Architecture
 

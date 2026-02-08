@@ -12,7 +12,7 @@ tags:
 statusDescription: Discovery
 ---
 
-# Claude Harness
+# Claude Conductor
 
 A lightweight Docker container that wraps Claude Code with scheduling, messaging, browser automation, and webhook capabilities. Runs on Unraid. Inspired by OpenClaw's architecture, but built lean around Claude Code as the engine.
 
@@ -224,7 +224,7 @@ Claude Code has a built-in memory hierarchy that the harness should leverage rat
 
 ```
 /vault/.claude/rules/
-├── harness-context.md      # "You're running inside Claude Harness, a Docker container..."
+├── harness-context.md      # "You're running inside Claude Conductor, a Docker container..."
 ├── telegram-formatting.md  # "Keep responses under 4096 chars, use Telegram-compatible markdown"
 ├── vault-operations.md     # "This is an Obsidian vault, respect frontmatter format..."
 ```

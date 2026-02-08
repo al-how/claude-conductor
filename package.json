@@ -1,5 +1,5 @@
 {
-  "name": "claude-harness",
+  "name": "claude-conductor",
   "version": "0.1.0",
   "description": "Docker container wrapping Claude Code CLI with scheduling, messaging, and webhook capabilities",
   "type": "module",

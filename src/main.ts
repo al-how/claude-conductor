@@ -14,7 +14,7 @@ export async function main() {
         level: process.env.LOG_LEVEL || 'info',
     });
 
-    logger.info('Claude Harness starting');
+    logger.info('Claude Conductor starting');
 
     // Load config
     const config = loadConfig();

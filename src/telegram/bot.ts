@@ -69,7 +69,7 @@ export class TelegramBot {
     }
 
     private setupHandlers() {
-        this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Harness!'));
+        this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Conductor!'));
         this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear'));
 
         this.bot.command('clear', async (ctx) => {

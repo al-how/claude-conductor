@@ -2,13 +2,13 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build the foundation layer for Claude Harness — project scaffolding, config loading, logging, Claude Code invocation wrapper, health check endpoint, Dockerfile, and entry point.
+**Goal:** Build the foundation layer for Claude Conductor — project scaffolding, config loading, logging, Claude Code invocation wrapper, health check endpoint, Dockerfile, and entry point.
 
 **Architecture:** Single Node.js process (the harness) that loads config, starts an HTTP server with a health endpoint, and provides a wrapper to spawn `claude -p` as child processes. All components are modular and independently testable.
 
 **Tech Stack:** TypeScript, Node.js 20, Vitest, Zod, Pino, Fastify, Docker
 
-**Spec:** `docs/Claude Harness.md`
+**Spec:** `docs/Claude Conductor.md`
 
 ---
 
@@ -24,7 +24,7 @@
 
 ```json
 {
-  "name": "claude-harness",
+  "name": "claude-conductor",
   "version": "0.1.0",
   "description": "Docker container wrapping Claude Code CLI with scheduling, messaging, and webhook capabilities",
   "type": "module",
@@ -502,7 +502,7 @@ export function createLogger(options: LoggerOptions = {}) {
   const { level = 'info', pretty = process.env.NODE_ENV !== 'production' } = options;
 
   return pino({
-    name: 'claude-harness',
+    name: 'claude-conductor',
     level,
     transport: pretty
       ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' } }

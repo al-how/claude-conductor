@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers how to run automated tests and perform manual verification for Claude Harness.
+This guide covers how to run automated tests and perform manual verification for Claude Conductor.
 
 ## Automated Tests
 
@@ -73,7 +73,7 @@ npm run dev
 ```
 
 ### 5. Verification Steps
-1.  **Start the Bot**: Send `/start` to your bot. It should reply "Welcome to Claude Harness!".
+1.  **Start the Bot**: Send `/start` to your bot. It should reply "Welcome to Claude Conductor!".
 2.  **Send a Message**: Send "Hello".
     -   **Logs**: Check the terminal. You should see "Received message", "Task enqueued", "Processing task".
     -   **Dispatcher**: The harness will try to spawn `claude`.

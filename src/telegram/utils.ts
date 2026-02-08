@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import type { Bot, Context } from 'grammy';
 
 export async function downloadTelegramFile(
@@ -16,9 +16,17 @@ export async function downloadTelegramFile(
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
 
-    const resolvedName = filename ?? `${fileId}${extname(filePath)}`;
+    const rawName = filename ?? `${fileId}${extname(filePath)}`;
+    const safeName = basename(rawName);
+    if (!safeName || safeName === '.' || safeName === '..') {
+        throw new Error('Invalid filename');
+    }
     await mkdir(destDir, { recursive: true });
-    const destPath = join(destDir, resolvedName);
+    const destPath = resolve(destDir, safeName);
+    const resolvedDestDir = resolve(destDir);
+    if (!destPath.startsWith(resolvedDestDir)) {
+        throw new Error('Path traversal detected');
+    }
 
     const buffer = Buffer.from(await response.arrayBuffer());
     await writeFile(destPath, buffer);
@@ -60,6 +68,10 @@ export function chunkMessage(text: string, limit = 4096): string[] {
     if (currentChunk) chunks.push(currentChunk);
 
     return chunks;
+}
+
+export function escapePromptContent(content: string): string {
+    return content.replace(/</g, '\u2039').replace(/>/g, '\u203A');
 }
 
 export function sanitizeMarkdown(text: string): string {

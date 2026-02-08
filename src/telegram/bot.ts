@@ -1,6 +1,6 @@
 import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
-import { chunkMessage, downloadTelegramFile } from './utils.js';
+import { chunkMessage, downloadTelegramFile, escapePromptContent } from './utils.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -8,6 +8,7 @@ import type { DatabaseManager } from '../db/index.js';
 export interface TelegramBotConfig {
     token: string;
     allowedUsers: number[];
+    workingDir?: string;
     dispatcher?: Dispatcher;
     db?: DatabaseManager;
     logger?: Logger;
@@ -21,18 +22,20 @@ export class TelegramBot {
     private allowedUsers: Set<number>;
     private dispatcher?: Dispatcher;
     private db?: DatabaseManager;
+    private workingDir?: string;
 
     constructor(config: TelegramBotConfig) {
         this.allowedUsers = new Set(config.allowedUsers);
         this.logger = config.logger?.child({ module: 'telegram' });
         this.dispatcher = config.dispatcher;
         this.db = config.db;
+        this.workingDir = config.workingDir;
 
         if (!config.token) {
             this.logger?.error('Telegram bot token is missing in config');
             throw new Error('Telegram bot token is missing');
         }
-        this.logger?.info({ tokenMasked: config.token.substring(0, 5) + '...' }, 'Initializing Telegram Bot');
+        this.logger?.info({ hasToken: !!config.token }, 'Initializing Telegram Bot');
 
         this.bot = new Bot<Context>(config.token);
         this.setupMiddleware();
@@ -150,7 +153,7 @@ export class TelegramBot {
                     const prior = history.slice(0, -1);
                     if (prior.length > 0) {
                         const historyBlock = prior
-                            .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`)
+                            .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
                             .join('\n\n');
                         prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}Human: ${text}`;
                     }
@@ -163,6 +166,7 @@ export class TelegramBot {
                 id: `tg-${ctx.message!.message_id}`,
                 source: 'telegram',
                 prompt,
+                workingDir: this.workingDir,
                 logger: this.logger,
                 onComplete: async (result) => {
                     let responseText: string;

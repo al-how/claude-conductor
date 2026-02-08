@@ -39,7 +39,7 @@ export async function main() {
     }
 
     // Initialize Dispatcher
-    const dispatcher = new Dispatcher(config.queue, logger);
+    const dispatcher = new Dispatcher(config.queue.max_concurrent, logger);
 
     // Initialize Telegram Bot
     let bot: TelegramBot | undefined;
@@ -49,6 +49,7 @@ export async function main() {
         bot = new TelegramBot({
             token: config.telegram.bot_token,
             allowedUsers: config.telegram.allowed_users,
+            workingDir: config.vault_path,
             logger,
             db,
             dispatcher

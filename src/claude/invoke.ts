@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import type { Logger } from 'pino';
 
 export interface ClaudeInvokeOptions {
@@ -54,9 +55,14 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
 }
 
 export async function invokeClaude(options: ClaudeInvokeOptions): Promise<ClaudeResult> {
-    const { workingDir = process.cwd(), timeout = 300_000, logger } = options;
+    const vaultDefault = process.env.VAULT_PATH || '/vault';
+    const { workingDir: requestedDir = vaultDefault, timeout = 300_000, logger } = options;
+    const workingDir = existsSync(requestedDir) ? requestedDir : process.cwd();
     const args = buildClaudeArgs(options);
 
+    if (workingDir !== requestedDir) {
+        logger?.warn({ requestedDir, workingDir }, 'Requested workingDir does not exist, falling back to cwd');
+    }
     logger?.debug({ args, workingDir }, 'Invoking Claude Code');
 
     return new Promise((resolve) => {

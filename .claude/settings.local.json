@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+      "Bash(python -m base64:*)",
+      "Bash(certutil -decode:*)",
+      "Bash(node -e:*)"
+    ]
+  }
+}

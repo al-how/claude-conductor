@@ -54,7 +54,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
 }
 
 export async function invokeClaude(options: ClaudeInvokeOptions): Promise<ClaudeResult> {
-    const { workingDir = '/vault', timeout = 300_000, logger } = options;
+    const { workingDir = process.cwd(), timeout = 300_000, logger } = options;
     const args = buildClaudeArgs(options);
 
     logger?.debug({ args, workingDir }, 'Invoking Claude Code');
@@ -65,14 +65,10 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         let timedOut = false;
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
-        const isWin = process.platform === 'win32';
-        const command = 'claude';
-
-        const child = spawn(command, args, {
+        const child = spawn('claude', args, {
             cwd: workingDir,
             env: process.env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: isWin // Ensure we can spawn batch files on Windows
+            stdio: ['ignore', 'pipe', 'pipe']
         });
 
         child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

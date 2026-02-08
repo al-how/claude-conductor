@@ -87,33 +87,70 @@ export class TelegramBot {
             if (this.dispatcher) {
                 await ctx.replyWithChatAction('typing'); // Show typing status
 
+                // Build prompt with conversation history for context
+                let prompt = text;
+                if (this.db) {
+                    try {
+                        const history = this.db.getRecentContext(ctx.chat.id, 20);
+                        // Exclude the message we just saved (last entry) since it's the current prompt
+                        const prior = history.slice(0, -1);
+                        if (prior.length > 0) {
+                            const historyBlock = prior
+                                .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`)
+                                .join('\n\n');
+                            prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\nHuman: ${text}`;
+                        }
+                    } catch (e) {
+                        this.logger?.error({ err: e }, 'Failed to load conversation history');
+                    }
+                }
+
                 this.dispatcher.enqueue({
                     id: `tg-${ctx.message.message_id}`,
                     source: 'telegram',
-                    prompt: text, // In integration, we might append history
-                    sessionId: String(ctx.chat.id),
+                    prompt,
                     logger: this.logger,
                     onComplete: async (result) => {
-                        // This will be handled in integration task properly, 
-                        // but for now we can simulate or just leave it for the loop.
-                        // We need to send the response back.
-                        // But the dispatcher task is generic. 
-                        // We can pass a closure here.
+                        let responseText: string;
 
-                        if (result.exitCode === 0) {
+                        if (result.timedOut) {
+                            responseText = 'Claude Code timed out.';
+                        } else if (result.exitCode !== 0) {
+                            responseText = `Claude Code exited with code ${result.exitCode}.`;
+                            if (result.stderr) {
+                                responseText += `\n\n${result.stderr.slice(0, 500)}`;
+                            }
+                        } else {
+                            // claude -p --output-format json returns a JSON object with a "result" field
                             try {
-                                const response = JSON.parse(result.stdout);
-                                // Assuming standard Claude Code JSON output or just raw text?
-                                // Spec says output-format json.
-                                // Usually it's just the text if we use non-interactive?
-                                // Actually `claude -p` output depends.
-                                // If it is just the response text we want, we should parse it.
-                                // For now, let's assume result.stdout is the response or part of it.
-                                // But wait, claude -p output might be complex.
-                                // Let's assume for this phase we just echo or send "Done".
-                                // The integration task will refine this.
+                                const parsed = JSON.parse(result.stdout);
+                                responseText = parsed.result ?? parsed.text ?? result.stdout;
+                            } catch {
+                                // If not valid JSON, use raw stdout
+                                responseText = result.stdout;
+                            }
+                        }
+
+                        if (!responseText || responseText.trim().length === 0) {
+                            responseText = '(empty response)';
+                        }
+
+                        // Save assistant response to DB
+                        if (this.db) {
+                            try {
+                                this.db.saveMessage(ctx.chat.id, 'assistant', responseText);
                             } catch (e) {
-                                //
+                                this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
+                            }
+                        }
+
+                        // Send response, chunking if needed for Telegram's 4096 char limit
+                        const chunks = chunkMessage(responseText);
+                        for (const chunk of chunks) {
+                            try {
+                                await ctx.reply(chunk);
+                            } catch (e) {
+                                this.logger?.error({ err: e }, 'Failed to send Telegram reply');
                             }
                         }
                     },

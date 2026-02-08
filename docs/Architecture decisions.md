@@ -1,0 +1,1 @@
+Openclaw uses an agent sdk called Pi to wrap around claude's sessions. We're using the regular Claude CLI. The benefit of this is simplicity; the cons are that i can't stop a run or fork a conversation

@@ -58,12 +58,13 @@ export class CronScheduler {
         try {
             const cron = new Cron(job.schedule, {
                 name: job.name,
+                timezone: job.timezone,
                 catch: true,
                 unref: true // Don't hold the process open
             }, () => this.executeJob(job));
 
             this.jobs.set(job.name, cron);
-            this.logger.info({ name: job.name, schedule: job.schedule }, 'Scheduled job');
+            this.logger.info({ name: job.name, schedule: job.schedule, timezone: job.timezone }, 'Scheduled job');
         } catch (error) {
             this.logger.error({ err: error, name: job.name, schedule: job.schedule }, 'Failed to schedule job');
         }

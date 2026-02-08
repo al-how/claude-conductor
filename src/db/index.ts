@@ -55,6 +55,7 @@ export class DatabaseManager {
           prompt TEXT NOT NULL,
           output TEXT DEFAULT 'telegram',
           enabled INTEGER DEFAULT 1,
+          timezone TEXT DEFAULT 'America/Chicago',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -101,11 +102,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone) VALUES (?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1);
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago');
         return this.getCronJob(job.name)!;
     }
 
@@ -130,6 +131,7 @@ export class DatabaseManager {
         if (updates.prompt !== undefined) { fields.push('prompt = ?'); values.push(updates.prompt); }
         if (updates.output !== undefined) { fields.push('output = ?'); values.push(updates.output); }
         if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled); }
+        if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
 
         if (fields.length === 0) return current;
 
@@ -187,6 +189,7 @@ export interface CronJobRow {
     prompt: string;
     output: string;
     enabled: number;
+    timezone: string;
     created_at: string;
     updated_at: string;
 }

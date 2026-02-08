@@ -85,4 +85,55 @@ describe('Cron API Routes', () => {
         expect(response.statusCode).toBe(200);
         expect(mockScheduler.removeJob).toHaveBeenCalledWith('test-job');
     });
+
+    it('POST /api/cron should return 400 on invalid input', async () => {
+        const response = await app.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload: { name: '', schedule: '', prompt: '' }
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toHaveProperty('error', 'Validation failed');
+    });
+
+    it('GET /api/cron/:name should return a single job', async () => {
+        const mockJob = { id: 1, name: 'single-job', schedule: '* * * * *', prompt: 'test', output: 'log', enabled: 1 };
+        (mockDb.getCronJob as any).mockReturnValue(mockJob);
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/cron/single-job'
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ job: mockJob });
+    });
+
+    it('PATCH /api/cron/:name should update a job', async () => {
+        const updatedJob = { id: 1, name: 'patch-job', schedule: '5 * * * *', prompt: 'updated', output: 'log', enabled: 1 };
+        (mockDb.updateCronJob as any).mockReturnValue(updatedJob);
+
+        const response = await app.inject({
+            method: 'PATCH',
+            url: '/api/cron/patch-job',
+            payload: { schedule: '5 * * * *' }
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ job: updatedJob });
+        expect(mockScheduler.removeJob).toHaveBeenCalledWith('patch-job');
+        expect(mockScheduler.addJob).toHaveBeenCalledWith(updatedJob);
+    });
+
+    it('DELETE /api/cron/:name should return 404 for nonexistent job', async () => {
+        (mockDb.deleteCronJob as any).mockReturnValue(false);
+
+        const response = await app.inject({
+            method: 'DELETE',
+            url: '/api/cron/nonexistent'
+        });
+
+        expect(response.statusCode).toBe(404);
+    });
 });

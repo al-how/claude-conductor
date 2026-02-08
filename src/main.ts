@@ -56,7 +56,8 @@ export async function main() {
             db,
             dispatcher
         });
-        await bot.start();
+        // bot.start() begins long-polling and only resolves on stop() — don't await it
+        bot.start().catch(err => logger.error({ err }, 'Telegram Bot polling error'));
         logger.info('Telegram Bot started');
     }
 

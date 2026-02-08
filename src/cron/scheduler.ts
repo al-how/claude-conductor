@@ -148,6 +148,13 @@ export class CronScheduler {
                     finished_at: new Date().toISOString(),
                     exit_code: -1
                 });
+                if (this.config.sendTelegram) {
+                    try {
+                        await this.config.sendTelegram(`[${job.name}] Error: ${err.message}`);
+                    } catch (telegramErr) {
+                        this.logger.error({ err: telegramErr }, 'Failed to send error notification to Telegram');
+                    }
+                }
             }
         });
     }

@@ -169,6 +169,7 @@ export class TelegramBot {
                 prompt,
                 workingDir: this.workingDir,
                 logger: this.logger,
+                dangerouslySkipPermissions: true,
                 onComplete: async (result) => {
                     let responseText = extractResponseText(result);
 

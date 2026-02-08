@@ -2,14 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseManager } from '../db/index.js';
 import type { CronScheduler } from '../cron/scheduler.js';
 import { z } from 'zod';
+import { CronJobSchema } from '../config/schema.js';
 
-const CronJobSchema = z.object({
-    name: z.string().min(1),
-    schedule: z.string().min(1),
-    prompt: z.string().min(1),
+const CronJobCreateSchema = CronJobSchema.extend({
     output: z.enum(['telegram', 'log', 'silent']).default('telegram'),
     enabled: z.number().min(0).max(1).optional()
 });
+
+const CronJobUpdateSchema = CronJobCreateSchema.partial().omit({ name: true });
 
 export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, scheduler: CronScheduler) {
     // List all jobs
@@ -28,7 +28,15 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
 
     // Create a new job
     app.post('/api/cron', async (request, reply) => {
-        const body = CronJobSchema.parse(request.body);
+        let body: z.infer<typeof CronJobCreateSchema>;
+        try {
+            body = CronJobCreateSchema.parse(request.body);
+        } catch (err) {
+            if (err instanceof z.ZodError) {
+                return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+            }
+            throw err;
+        }
 
         const existing = db.getCronJob(body.name);
         if (existing) {
@@ -51,11 +59,16 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
     // Update a job
     app.patch('/api/cron/:name', async (request, reply) => {
         const { name } = request.params as { name: string };
-        const body = request.body as Partial<z.infer<typeof CronJobSchema>>;
 
-        // Basic validation of fields if present
-        if (body.schedule && body.schedule.length === 0) return reply.status(400).send({ error: 'Invalid schedule' });
-        if (body.prompt && body.prompt.length === 0) return reply.status(400).send({ error: 'Invalid prompt' });
+        let body: z.infer<typeof CronJobUpdateSchema>;
+        try {
+            body = CronJobUpdateSchema.parse(request.body);
+        } catch (err) {
+            if (err instanceof z.ZodError) {
+                return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+            }
+            throw err;
+        }
 
         const job = db.updateCronJob(name, body);
         if (!job) return reply.status(404).send({ error: 'Job not found' });

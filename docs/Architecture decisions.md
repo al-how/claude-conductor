@@ -27,6 +27,13 @@ Openclaw uses an agent sdk called Pi to wrap around claude's sessions. We're usi
 - **Alternative**: Raw output.
 - **Rationale**: Since multiple jobs might run or output asynchronously, the user needs context to know which scheduled task generated the message.
 
+### 5. Telegram sessions use `--dangerously-skip-permissions`
+- **Decision**: Interactive Telegram sessions invoke Claude Code with `--dangerously-skip-permissions`, granting full tool access including Bash.
+- **Alternatives**:
+    - Restrictive `--allowedTools` whitelist for Telegram sessions.
+    - File-based API instead of HTTP + curl.
+- **Rationale**: Claude Code needs Bash access to run `curl` against the harness API (e.g., to create cron jobs). Interactive Telegram sessions are user-initiated and gated by the `allowed_users` allowlist, providing sufficient auth. Cron jobs remain read-only with a restricted tool set.
+
 ## General Architecture
 
 ### 1. Config Loading Strategy

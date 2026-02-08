@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConfigSchema } from '../../src/config/schema.js';
+import { ConfigSchema, CronJobSchema } from '../../src/config/schema.js';
 
 describe('ConfigSchema', () => {
     it('should accept minimal valid config with just telegram', () => {
@@ -16,7 +16,6 @@ describe('ConfigSchema', () => {
         const result = ConfigSchema.safeParse({});
         expect(result.success).toBe(true);
         if (result.success) {
-            expect(result.data.cron).toEqual([]);
             expect(result.data.webhooks).toEqual([]);
             expect(result.data.queue.max_concurrent).toBe(1);
             expect(result.data.browser.enabled).toBe(false);
@@ -38,12 +37,12 @@ describe('ConfigSchema', () => {
     });
 
     it('should validate cron job schema', () => {
-        const result = ConfigSchema.safeParse({
-            cron: [{ name: 'test', schedule: '0 7 * * *', prompt: 'do stuff' }]
+        const result = CronJobSchema.safeParse({
+            name: 'test', schedule: '0 7 * * *', prompt: 'do stuff'
         });
         expect(result.success).toBe(true);
         if (result.success) {
-            expect(result.data.cron[0].output).toBe('log'); // default
+            expect(result.data.output).toBe('log'); // default
         }
     });
 

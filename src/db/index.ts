@@ -158,17 +158,17 @@ export class DatabaseManager {
             entry.job_name,
             entry.started_at,
             entry.finished_at || null,
-            entry.exit_code || null,
-            entry.timed_out || 0,
-            entry.output_destination || null,
-            entry.response_preview || null,
-            entry.error || null
+            entry.exit_code ?? null,
+            entry.timed_out ?? 0,
+            entry.output_destination ?? null,
+            entry.response_preview ?? null,
+            entry.error ?? null
         );
     }
 
-    public getRecentCronExecutions(jobName?: string, limit: number = 20): any[] {
+    public getRecentCronExecutions(jobName?: string, limit: number = 20): CronExecution[] {
         let sql = 'SELECT * FROM cron_executions';
-        const params: any[] = [];
+        const params: (string | number)[] = [];
         if (jobName) {
             sql += ' WHERE job_name = ?';
             params.push(jobName);
@@ -176,7 +176,7 @@ export class DatabaseManager {
         sql += ' ORDER BY id DESC LIMIT ?';
         params.push(limit);
         const stmt = this.db.prepare(sql);
-        return stmt.all(...params);
+        return stmt.all(...params) as CronExecution[];
     }
 }
 
@@ -189,4 +189,16 @@ export interface CronJobRow {
     enabled: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface CronExecution {
+    id: number;
+    job_name: string;
+    started_at: string;
+    finished_at: string | null;
+    exit_code: number | null;
+    timed_out: number;
+    output_destination: string | null;
+    response_preview: string | null;
+    error: string | null;
 }

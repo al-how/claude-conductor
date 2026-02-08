@@ -50,8 +50,20 @@ telegram:
         expect(() => loadConfig(path)).toThrow('Environment variable DOES_NOT_EXIST not found');
     });
 
-    it('should throw on missing file', () => {
-        expect(() => loadConfig('/no/such/file.yaml')).toThrow('Failed to read config');
+    it('should throw on missing file when no fallbacks exist', () => {
+        // Save and clear env/cwd fallback paths so the loader can't find any config
+        const origConfigPath = process.env.CONFIG_PATH;
+        delete process.env.CONFIG_PATH;
+        const origCwd = process.cwd();
+        const emptyDir = mkdtempSync(join(tmpdir(), 'harness-empty-'));
+        process.chdir(emptyDir);
+        try {
+            expect(() => loadConfig('/no/such/file.yaml')).toThrow('Could not find valid config file');
+        } finally {
+            process.chdir(origCwd);
+            if (origConfigPath) process.env.CONFIG_PATH = origConfigPath;
+            rmSync(emptyDir, { recursive: true, force: true });
+        }
     });
 
     it('should throw on invalid YAML', () => {

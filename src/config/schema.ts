@@ -5,7 +5,7 @@ const TelegramConfigSchema = z.object({
     allowed_users: z.array(z.number().int().positive()).min(1, 'At least one allowed user required')
 });
 
-const CronJobSchema = z.object({
+export const CronJobSchema = z.object({
     name: z.string().min(1),
     schedule: z.string().min(1),
     prompt: z.string().min(1),

@@ -1,3 +1,30 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join, extname } from 'node:path';
+import type { Bot, Context } from 'grammy';
+
+export async function downloadTelegramFile(
+    bot: Bot<Context>,
+    fileId: string,
+    destDir: string,
+    filename?: string
+): Promise<string> {
+    const file = await bot.api.getFile(fileId);
+    const filePath = file.file_path;
+    if (!filePath) throw new Error('Telegram did not return a file_path');
+
+    const url = `https://api.telegram.org/file/bot${bot.token}/${filePath}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
+
+    const resolvedName = filename ?? `${fileId}${extname(filePath)}`;
+    await mkdir(destDir, { recursive: true });
+    const destPath = join(destDir, resolvedName);
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await writeFile(destPath, buffer);
+    return destPath;
+}
+
 export function chunkMessage(text: string, limit = 4096): string[] {
     if (text.length <= limit) return [text];
 

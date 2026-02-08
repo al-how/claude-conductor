@@ -6,7 +6,9 @@
       "Bash(gh api:*)",
       "Bash(python -m base64:*)",
       "Bash(certutil -decode:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }

@@ -1,5 +1,6 @@
-import { Bot, Context, session } from 'grammy';
-import { chunkMessage, sanitizeMarkdown } from './utils.js';
+import { Bot, Context } from 'grammy';
+import { resolve } from 'node:path';
+import { chunkMessage, downloadTelegramFile } from './utils.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -11,6 +12,8 @@ export interface TelegramBotConfig {
     db?: DatabaseManager;
     logger?: Logger;
 }
+
+const TELEGRAM_FILES_DIR = resolve('./data/telegram-files');
 
 export class TelegramBot {
     private bot: Bot;
@@ -74,95 +77,140 @@ export class TelegramBot {
         this.bot.on('message:text', async (ctx) => {
             const text = ctx.message.text;
             this.logger?.info({ userId: ctx.from.id, text }, 'Received message');
+            await this.handleUserMessage(ctx, text);
+        });
 
-            // Save user message
-            if (this.db) {
-                try {
-                    this.db.saveMessage(ctx.chat.id, 'user', text);
-                } catch (e) {
-                    this.logger?.error({ err: e }, 'Failed to save message to DB');
-                }
-            }
+        this.bot.on('message:photo', async (ctx) => {
+            const photos = ctx.message.photo;
+            const largest = photos[photos.length - 1];
+            this.logger?.info({ userId: ctx.from.id, fileId: largest.file_id }, 'Received photo');
 
-            if (this.dispatcher) {
-                await ctx.replyWithChatAction('typing'); // Show typing status
-
-                // Build prompt with conversation history for context
-                let prompt = text;
-                if (this.db) {
-                    try {
-                        const history = this.db.getRecentContext(ctx.chat.id, 20);
-                        // Exclude the message we just saved (last entry) since it's the current prompt
-                        const prior = history.slice(0, -1);
-                        if (prior.length > 0) {
-                            const historyBlock = prior
-                                .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`)
-                                .join('\n\n');
-                            prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\nHuman: ${text}`;
-                        }
-                    } catch (e) {
-                        this.logger?.error({ err: e }, 'Failed to load conversation history');
-                    }
-                }
-
-                this.dispatcher.enqueue({
-                    id: `tg-${ctx.message.message_id}`,
-                    source: 'telegram',
-                    prompt,
-                    logger: this.logger,
-                    onComplete: async (result) => {
-                        let responseText: string;
-
-                        if (result.timedOut) {
-                            responseText = 'Claude Code timed out.';
-                        } else if (result.exitCode !== 0) {
-                            responseText = `Claude Code exited with code ${result.exitCode}.`;
-                            if (result.stderr) {
-                                responseText += `\n\n${result.stderr.slice(0, 500)}`;
-                            }
-                        } else {
-                            // claude -p --output-format json returns a JSON object with a "result" field
-                            try {
-                                const parsed = JSON.parse(result.stdout);
-                                responseText = parsed.result ?? parsed.text ?? result.stdout;
-                            } catch {
-                                // If not valid JSON, use raw stdout
-                                responseText = result.stdout;
-                            }
-                        }
-
-                        if (!responseText || responseText.trim().length === 0) {
-                            responseText = '(empty response)';
-                        }
-
-                        // Save assistant response to DB
-                        if (this.db) {
-                            try {
-                                this.db.saveMessage(ctx.chat.id, 'assistant', responseText);
-                            } catch (e) {
-                                this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
-                            }
-                        }
-
-                        // Send response, chunking if needed for Telegram's 4096 char limit
-                        const chunks = chunkMessage(responseText);
-                        for (const chunk of chunks) {
-                            try {
-                                await ctx.reply(chunk);
-                            } catch (e) {
-                                this.logger?.error({ err: e }, 'Failed to send Telegram reply');
-                            }
-                        }
-                    },
-                    onError: async (err) => {
-                        await ctx.reply(`Error: ${err.message}`);
-                    }
-                });
-            } else {
-                // specific for unit testing without dispatcher
-                await ctx.reply('Dispatcher not connected.');
+            try {
+                const localPath = await downloadTelegramFile(
+                    this.bot,
+                    largest.file_id,
+                    TELEGRAM_FILES_DIR,
+                    `photo_${largest.file_unique_id}.jpg`
+                );
+                const text = ctx.message.caption || 'Describe this image.';
+                await this.handleUserMessage(ctx, text, [localPath]);
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to download photo');
+                await ctx.reply('Failed to download the photo.');
             }
         });
+
+        this.bot.on('message:document', async (ctx) => {
+            const doc = ctx.message.document;
+            this.logger?.info({ userId: ctx.from.id, fileName: doc.file_name }, 'Received document');
+
+            try {
+                const localPath = await downloadTelegramFile(
+                    this.bot,
+                    doc.file_id,
+                    TELEGRAM_FILES_DIR,
+                    doc.file_name
+                );
+                const text = ctx.message.caption || 'Analyze this file.';
+                await this.handleUserMessage(ctx, text, [localPath]);
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to download document');
+                await ctx.reply('Failed to download the document.');
+            }
+        });
+    }
+
+    private async handleUserMessage(ctx: Context, text: string, filePaths?: string[]) {
+        // Save user message
+        if (this.db) {
+            try {
+                this.db.saveMessage(ctx.chat!.id, 'user', text);
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to save message to DB');
+            }
+        }
+
+        if (this.dispatcher) {
+            await ctx.replyWithChatAction('typing');
+
+            // Build file attachment block
+            let fileBlock = '';
+            if (filePaths && filePaths.length > 0) {
+                const entries = filePaths
+                    .map(fp => `File: ${fp}\nUse the Read tool to view this file.`)
+                    .join('\n\n');
+                fileBlock = `<attached_files>\n${entries}\n</attached_files>\n\n`;
+            }
+
+            // Build prompt with conversation history for context
+            let prompt = `${fileBlock}${text}`;
+            if (this.db) {
+                try {
+                    const history = this.db.getRecentContext(ctx.chat!.id, 20);
+                    const prior = history.slice(0, -1);
+                    if (prior.length > 0) {
+                        const historyBlock = prior
+                            .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`)
+                            .join('\n\n');
+                        prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}Human: ${text}`;
+                    }
+                } catch (e) {
+                    this.logger?.error({ err: e }, 'Failed to load conversation history');
+                }
+            }
+
+            this.dispatcher.enqueue({
+                id: `tg-${ctx.message!.message_id}`,
+                source: 'telegram',
+                prompt,
+                logger: this.logger,
+                onComplete: async (result) => {
+                    let responseText: string;
+
+                    if (result.timedOut) {
+                        responseText = 'Claude Code timed out.';
+                    } else if (result.exitCode !== 0) {
+                        responseText = `Claude Code exited with code ${result.exitCode}.`;
+                        if (result.stderr) {
+                            responseText += `\n\n${result.stderr.slice(0, 500)}`;
+                        }
+                    } else {
+                        try {
+                            const parsed = JSON.parse(result.stdout);
+                            responseText = parsed.result ?? parsed.text ?? result.stdout;
+                        } catch {
+                            responseText = result.stdout;
+                        }
+                    }
+
+                    if (!responseText || responseText.trim().length === 0) {
+                        responseText = '(empty response)';
+                    }
+
+                    if (this.db) {
+                        try {
+                            this.db.saveMessage(ctx.chat!.id, 'assistant', responseText);
+                        } catch (e) {
+                            this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
+                        }
+                    }
+
+                    const chunks = chunkMessage(responseText);
+                    for (const chunk of chunks) {
+                        try {
+                            await ctx.reply(chunk);
+                        } catch (e) {
+                            this.logger?.error({ err: e }, 'Failed to send Telegram reply');
+                        }
+                    }
+                },
+                onError: async (err) => {
+                    await ctx.reply(`Error: ${err.message}`);
+                }
+            });
+        } else {
+            await ctx.reply('Dispatcher not connected.');
+        }
     }
 
     public async start() {

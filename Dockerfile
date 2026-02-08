@@ -35,7 +35,8 @@ ENV PATH="/home/claude/.local/bin:$PATH" \
     PORT=3000 \
     HOST=0.0.0.0 \
     CONFIG_PATH=/config/config.yaml \
-    LOG_LEVEL=info
+    LOG_LEVEL=info \
+    TELEGRAM_FILES_DIR=/data/telegram-files
 
 EXPOSE 3000
 

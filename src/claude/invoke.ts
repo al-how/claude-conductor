@@ -65,10 +65,14 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         let timedOut = false;
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
-        const child = spawn('claude', args, {
+        const isWin = process.platform === 'win32';
+        const command = 'claude';
+
+        const child = spawn(command, args, {
             cwd: workingDir,
             env: process.env,
-            stdio: ['ignore', 'pipe', 'pipe']
+            stdio: ['ignore', 'pipe', 'pipe'],
+            shell: isWin // Ensure we can spawn batch files on Windows
         });
 
         child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

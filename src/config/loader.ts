@@ -12,7 +12,7 @@ function substituteEnvVars(value: unknown): unknown {
             return envValue;
         });
     }
-    if (Array.isArray(value)) return value.map(substituteEnvVars);
+    if (Array.isArray(value)) return value.map(v => substituteEnvVars(v));
     if (value !== null && typeof value === 'object') {
         return Object.fromEntries(
             Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, substituteEnvVars(v)])
@@ -21,12 +21,13 @@ function substituteEnvVars(value: unknown): unknown {
     return value;
 }
 
-export function loadConfig(configPath: string): Config {
+export function loadConfig(configPath?: string): Config {
+    const path = configPath || process.env.CONFIG_PATH || '/config/config.yaml';
     let raw: string;
     try {
-        raw = readFileSync(configPath, 'utf-8');
+        raw = readFileSync(path, 'utf-8');
     } catch (err) {
-        throw new Error(`Failed to read config file at ${configPath}: ${(err as Error).message}`);
+        throw new Error(`Failed to read config file at ${path}: ${(err as Error).message}`);
     }
 
     const parsed = parseYaml(raw);

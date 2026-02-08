@@ -20,12 +20,18 @@ export class TelegramBot {
     private db?: DatabaseManager;
 
     constructor(config: TelegramBotConfig) {
-        this.bot = new Bot(config.token);
         this.allowedUsers = new Set(config.allowedUsers);
-        this.logger = config.logger;
+        this.logger = config.logger?.child({ module: 'telegram' });
         this.dispatcher = config.dispatcher;
         this.db = config.db;
 
+        if (!config.token) {
+            this.logger?.error('Telegram bot token is missing in config');
+            throw new Error('Telegram bot token is missing');
+        }
+        this.logger?.info({ tokenMasked: config.token.substring(0, 5) + '...' }, 'Initializing Telegram Bot');
+
+        this.bot = new Bot<Context>(config.token);
         this.setupMiddleware();
         this.setupHandlers();
     }

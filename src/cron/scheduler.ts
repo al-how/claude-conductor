@@ -1,5 +1,6 @@
 import { Cron } from 'croner';
-// import { join } from 'node:path';
+import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager, CronJobRow } from '../db/index.js';
@@ -91,14 +92,75 @@ export class CronScheduler {
         return statuses;
     }
 
+    /**
+     * Read the history file for a job and return previous entries as context.
+     * History files live at {vaultPath}/agent-files/{jobName}-history.md
+     */
+    private getHistoryContext(jobName: string): string {
+        const historyPath = join(this.config.vaultPath, 'agent-files', `${jobName}-history.md`);
+        if (!existsSync(historyPath)) return '';
+
+        try {
+            const content = readFileSync(historyPath, 'utf-8').trim();
+            if (!content) return '';
+            return `\n\n---\nPREVIOUS RESULTS — do not repeat these stories/items:\n${content}\n---\n`;
+        } catch (err) {
+            this.logger.warn({ err, jobName }, 'Failed to read history file');
+            return '';
+        }
+    }
+
+    /**
+     * Append today's results to the history file with a date header.
+     */
+    private appendToHistoryFile(jobName: string, responseText: string): void {
+        const historyPath = join(this.config.vaultPath, 'agent-files', `${jobName}-history.md`);
+        const today = new Date().toISOString().split('T')[0];
+        const entry = `\n## ${today}\n${responseText}\n`;
+
+        try {
+            let existing = '';
+            if (existsSync(historyPath)) {
+                existing = readFileSync(historyPath, 'utf-8');
+            }
+            const updated = this.trimHistory(existing + entry, 14);
+            writeFileSync(historyPath, updated, 'utf-8');
+            this.logger.debug({ jobName, historyPath }, 'Updated history file');
+        } catch (err) {
+            this.logger.warn({ err, jobName }, 'Failed to update history file');
+        }
+    }
+
+    /**
+     * Trim history entries older than `maxAgeDays` days.
+     * Entries are identified by `## YYYY-MM-DD` headers.
+     */
+    private trimHistory(content: string, maxAgeDays: number): string {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - maxAgeDays);
+
+        const sections = content.split(/(?=^## \d{4}-\d{2}-\d{2})/m);
+        const kept = sections.filter(section => {
+            const match = section.match(/^## (\d{4}-\d{2}-\d{2})/);
+            if (!match) return true; // Keep non-dated content (e.g. preamble)
+            return new Date(match[1]) >= cutoff;
+        });
+
+        return kept.join('').trim() + '\n';
+    }
+
     private async executeJob(job: CronJobRow): Promise<void> {
         this.logger.info({ name: job.name }, 'Executing cron job');
         const startTime = new Date().toISOString();
 
+        // Inject history context into the prompt for dedup
+        const historyContext = this.getHistoryContext(job.name);
+        const enrichedPrompt = job.prompt + historyContext;
+
         this.config.dispatcher.enqueue({
             id: `cron-${job.name}-${Date.now()}`,
             source: 'cron',
-            prompt: job.prompt,
+            prompt: enrichedPrompt,
             workingDir: this.config.vaultPath,
             logger: this.logger,
             noSessionPersistence: true,
@@ -120,6 +182,11 @@ export class CronScheduler {
                     response_preview: responseText.slice(0, 200),
                     error: result.stderr
                 });
+
+                // Save to history for dedup on next run
+                if (result.exitCode === 0 && responseText.trim()) {
+                    this.appendToHistoryFile(job.name, responseText);
+                }
 
                 // Route output
                 if (job.output === 'telegram') {

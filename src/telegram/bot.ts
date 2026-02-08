@@ -14,7 +14,7 @@ export interface TelegramBotConfig {
     logger?: Logger;
 }
 
-const TELEGRAM_FILES_DIR = resolve('./data/telegram-files');
+const TELEGRAM_FILES_DIR = resolve('/data/telegram-files');
 
 export class TelegramBot {
     private bot: Bot;

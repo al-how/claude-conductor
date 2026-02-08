@@ -1,13 +1,15 @@
 import { fastify } from 'fastify';
-import { dirname } from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config/loader.js';
 import { createLogger } from './logger.js';
 import { registerHealthRoute } from './server/health.js';
+import { registerCronRoutes } from './server/cron-routes.js';
 import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
+import { CronScheduler } from './cron/scheduler.js';
 
 export async function main() {
     const logger = createLogger({
@@ -58,11 +60,60 @@ export async function main() {
         logger.info('Telegram Bot started');
     }
 
+    // Initialize Cron Scheduler
+    const scheduler = new CronScheduler({
+        dispatcher,
+        vaultPath: config.vault_path,
+        logger,
+        db: db!, // DB is initialized above, checking logic might need improvement but following flow
+        sendTelegram: bot
+            ? (text) => bot!.sendMessage(config.telegram!.allowed_users[0], text)
+            : undefined
+    });
+    scheduler.start();
+
     // Init Server (Fastify)
     const app = fastify({ logger: false }); // We use our own logger
 
     // Health check
     registerHealthRoute(app);
+    // Cron routes
+    registerCronRoutes(app, db!, scheduler);
+
+    // Write runtime instructions for Claude Code
+    try {
+        const rulesDir = join(config.vault_path, '.claude', 'rules');
+        if (!existsSync(rulesDir)) {
+            mkdirSync(rulesDir, { recursive: true });
+        }
+
+        const rulesContent = `# Scheduled Tasks API
+
+You can create, list, and manage scheduled tasks via the harness API at http://localhost:3000.
+
+## Create a scheduled task
+curl -s -X POST http://localhost:3000/api/cron \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram"}'
+
+## List all scheduled tasks
+curl -s http://localhost:3000/api/cron
+
+## Update a task
+curl -s -X PATCH http://localhost:3000/api/cron/task-name \\
+  -H "Content-Type: application/json" \\
+  -d '{"schedule": "0 21 * * *"}'
+
+## Delete a task
+curl -s -X DELETE http://localhost:3000/api/cron/task-name
+
+Schedule uses standard cron expressions. Output options: telegram, log, silent.
+`;
+        writeFileSync(join(rulesDir, 'harness-api.md'), rulesContent);
+        logger.info({ path: join(rulesDir, 'harness-api.md') }, 'Written API rules for Claude Code');
+    } catch (err) {
+        logger.error({ err }, 'Failed to write API rules file');
+    }
 
     // Start server
     const port = parseInt(process.env.PORT || '3000', 10);
@@ -80,6 +131,7 @@ export async function main() {
     /* v8 ignore start */
     const shutdown = async () => {
         logger.info('Shutting down...');
+        scheduler.stop();
         await app.close();
         if (bot) await bot.stop();
         if (db) db.close();
@@ -90,7 +142,7 @@ export async function main() {
     process.on('SIGINT', shutdown);
     /* v8 ignore stop */
 
-    return { app, bot, dispatcher, db }; // Return for testing
+    return { app, bot, dispatcher, db, scheduler }; // Return for testing
 }
 
 // Run when executed directly

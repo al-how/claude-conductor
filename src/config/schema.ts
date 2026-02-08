@@ -40,7 +40,7 @@ const BrowserConfigSchema = z.object({
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     telegram: TelegramConfigSchema.optional(),
-    cron: z.array(CronJobSchema).default([]),
+    // cron: z.array(CronJobSchema).default([]), // Removed in favor of DB-driven cron
     webhooks: z.array(WebhookRouteSchema).default([]),
     queue: QueueConfigSchema,
     browser: BrowserConfigSchema

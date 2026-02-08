@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { ConfigSchema, type Config } from './schema.js';
 
@@ -22,12 +22,33 @@ function substituteEnvVars(value: unknown): unknown {
 }
 
 export function loadConfig(configPath?: string): Config {
-    const path = configPath || process.env.CONFIG_PATH || '/config/config.yaml';
-    let raw: string;
-    try {
-        raw = readFileSync(path, 'utf-8');
-    } catch (err) {
-        throw new Error(`Failed to read config file at ${path}: ${(err as Error).message}`);
+    const pathsToTry = [
+        configPath,
+        process.env.CONFIG_PATH,
+        './config.local.yaml',
+        './config.yaml',
+        '/config/config.yaml'
+    ].filter(Boolean) as string[];
+
+    let raw: string | undefined;
+    let loadedPath: string | undefined;
+
+    for (const path of pathsToTry) {
+        if (existsSync(path)) {
+            try {
+                raw = readFileSync(path, 'utf-8');
+                loadedPath = path;
+                process.env.CONFIG_PATH = path; // Update env var for other components to see
+                break;
+            } catch (err) {
+                // Ignore read errors, try next
+                console.warn(`Failed to read config at ${path}, trying next...`);
+            }
+        }
+    }
+
+    if (!raw || !loadedPath) {
+        throw new Error(`Could not find valid config file. Tried: ${pathsToTry.join(', ')}`);
     }
 
     const parsed = parseYaml(raw);

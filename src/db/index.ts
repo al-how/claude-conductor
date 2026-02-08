@@ -47,6 +47,29 @@ export class DatabaseManager {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_conversations_chat_id ON conversations(chat_id);
+
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          schedule TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          output TEXT DEFAULT 'telegram',
+          enabled INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS cron_executions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_name TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          finished_at TEXT,
+          exit_code INTEGER,
+          timed_out INTEGER DEFAULT 0,
+          output_destination TEXT,
+          response_preview TEXT,
+          error TEXT
+        );
       `;
 
             this.db.exec(schema);
@@ -76,4 +99,94 @@ export class DatabaseManager {
     public close() {
         this.db.close();
     }
+
+    // Cron Jobs
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number }): CronJobRow {
+        const stmt = this.db.prepare(
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled) VALUES (?, ?, ?, ?, ?)'
+        );
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1);
+        return this.getCronJob(job.name)!;
+    }
+
+    public getCronJob(name: string): CronJobRow | undefined {
+        const stmt = this.db.prepare('SELECT * FROM cron_jobs WHERE name = ?');
+        return stmt.get(name) as CronJobRow | undefined;
+    }
+
+    public listCronJobs(): CronJobRow[] {
+        const stmt = this.db.prepare('SELECT * FROM cron_jobs');
+        return stmt.all() as CronJobRow[];
+    }
+
+    public updateCronJob(name: string, updates: Partial<Omit<CronJobRow, 'id' | 'created_at' | 'updated_at'>>): CronJobRow | undefined {
+        const current = this.getCronJob(name);
+        if (!current) return undefined;
+
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        if (updates.schedule !== undefined) { fields.push('schedule = ?'); values.push(updates.schedule); }
+        if (updates.prompt !== undefined) { fields.push('prompt = ?'); values.push(updates.prompt); }
+        if (updates.output !== undefined) { fields.push('output = ?'); values.push(updates.output); }
+        if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled); }
+
+        if (fields.length === 0) return current;
+
+        fields.push('updated_at = CURRENT_TIMESTAMP');
+        values.push(name);
+
+        const stmt = this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE name = ?`);
+        stmt.run(...values);
+
+        return this.getCronJob(name);
+    }
+
+    public deleteCronJob(name: string): boolean {
+        const stmt = this.db.prepare('DELETE FROM cron_jobs WHERE name = ?');
+        const result = stmt.run(name);
+        return result.changes > 0;
+    }
+
+    public logCronExecution(entry: { job_name: string; started_at: string; finished_at?: string; exit_code?: number; timed_out?: number; output_destination?: string; response_preview?: string; error?: string }): void {
+        const stmt = this.db.prepare(
+            `INSERT INTO cron_executions 
+       (job_name, started_at, finished_at, exit_code, timed_out, output_destination, response_preview, error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        );
+        stmt.run(
+            entry.job_name,
+            entry.started_at,
+            entry.finished_at || null,
+            entry.exit_code || null,
+            entry.timed_out || 0,
+            entry.output_destination || null,
+            entry.response_preview || null,
+            entry.error || null
+        );
+    }
+
+    public getRecentCronExecutions(jobName?: string, limit: number = 20): any[] {
+        let sql = 'SELECT * FROM cron_executions';
+        const params: any[] = [];
+        if (jobName) {
+            sql += ' WHERE job_name = ?';
+            params.push(jobName);
+        }
+        sql += ' ORDER BY id DESC LIMIT ?';
+        params.push(limit);
+        const stmt = this.db.prepare(sql);
+        return stmt.all(...params);
+    }
+}
+
+export interface CronJobRow {
+    id: number;
+    name: string;
+    schedule: string;
+    prompt: string;
+    output: string;
+    enabled: number;
+    created_at: string;
+    updated_at: string;
 }

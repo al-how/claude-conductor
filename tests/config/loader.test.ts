@@ -26,7 +26,7 @@ telegram:
 `);
         const config = loadConfig(path);
         expect(config.telegram?.bot_token).toBe('abc123');
-        expect(config.cron).toEqual([]);
+        // expect(config.cron).toEqual([]); // Removed in favor of DB-driven cron
     });
 
     it('should substitute environment variables', () => {

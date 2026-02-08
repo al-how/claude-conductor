@@ -1,6 +1,7 @@
 import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent } from './utils.js';
+import { extractResponseText } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -169,23 +170,7 @@ export class TelegramBot {
                 workingDir: this.workingDir,
                 logger: this.logger,
                 onComplete: async (result) => {
-                    let responseText: string;
-
-                    if (result.timedOut) {
-                        responseText = 'Claude Code timed out.';
-                    } else if (result.exitCode !== 0) {
-                        responseText = `Claude Code exited with code ${result.exitCode}.`;
-                        if (result.stderr) {
-                            responseText += `\n\n${result.stderr.slice(0, 500)}`;
-                        }
-                    } else {
-                        try {
-                            const parsed = JSON.parse(result.stdout);
-                            responseText = parsed.result ?? parsed.text ?? result.stdout;
-                        } catch {
-                            responseText = result.stdout;
-                        }
-                    }
+                    let responseText = extractResponseText(result);
 
                     if (!responseText || responseText.trim().length === 0) {
                         responseText = '(empty response)';
@@ -214,6 +199,13 @@ export class TelegramBot {
             });
         } else {
             await ctx.reply('Dispatcher not connected.');
+        }
+    }
+
+    public async sendMessage(chatId: number, text: string): Promise<void> {
+        const chunks = chunkMessage(text);
+        for (const chunk of chunks) {
+            await this.bot.api.sendMessage(chatId, chunk);
         }
     }
 

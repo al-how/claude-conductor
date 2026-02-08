@@ -40,6 +40,87 @@ describe('DatabaseManager', () => {
         expect(context[1].content).toBe('Hi there');
     });
 
+    it('should retrieve recent context', () => {
+        const chatId = 123;
+        for (let i = 0; i < 30; i++) {
+            dbManager.saveMessage(chatId, i % 2 === 0 ? 'user' : 'assistant', `msg ${i}`);
+        }
+
+        const context = dbManager.getRecentContext(chatId, 10);
+        expect(context).toHaveLength(10);
+        // Should be last 10 messages, in chronological order
+        expect(context[9].content).toBe('msg 29');
+    });
+
+    // Cron Tests
+    it('should create and retrieve cron jobs', () => {
+        const job = dbManager.createCronJob({
+            name: 'test-job',
+            schedule: '* * * * *',
+            prompt: 'hello',
+            output: 'log'
+        });
+
+        expect(job.id).toBeDefined();
+        expect(job.name).toBe('test-job');
+        expect(job.enabled).toBe(1);
+
+        const retrieved = dbManager.getCronJob('test-job');
+        expect(retrieved).toBeDefined();
+        expect(retrieved?.name).toBe('test-job');
+    });
+
+    it('should list all cron jobs', () => {
+        dbManager.createCronJob({ name: 'j1', schedule: '*', prompt: 'p1' });
+        dbManager.createCronJob({ name: 'j2', schedule: '*', prompt: 'p2' });
+
+        const jobs = dbManager.listCronJobs();
+        expect(jobs).toHaveLength(2);
+    });
+
+    it('should update a cron job', () => {
+        dbManager.createCronJob({ name: 'update-me', schedule: '*', prompt: 'old' });
+
+        const updated = dbManager.updateCronJob('update-me', {
+            schedule: '5 * * * *',
+            prompt: 'new',
+            enabled: 0
+        });
+
+        expect(updated).toBeDefined();
+        expect(updated?.schedule).toBe('5 * * * *');
+        expect(updated?.prompt).toBe('new');
+        expect(updated?.enabled).toBe(0);
+
+        const verify = dbManager.getCronJob('update-me');
+        expect(verify?.schedule).toBe('5 * * * *');
+    });
+
+    it('should delete a cron job', () => {
+        dbManager.createCronJob({ name: 'delete-me', schedule: '*', prompt: 'bye' });
+        const result = dbManager.deleteCronJob('delete-me');
+        expect(result).toBe(true);
+
+        const missing = dbManager.getCronJob('delete-me');
+        expect(missing).toBeUndefined();
+    });
+
+    it('should log cron executions', () => {
+        dbManager.logCronExecution({
+            job_name: 'exec-job',
+            started_at: '2023-01-01T00:00:00Z',
+            finished_at: '2023-01-01T00:00:05Z',
+            exit_code: 0,
+            output_destination: 'log',
+            response_preview: 'success'
+        });
+
+        const executions = dbManager.getRecentCronExecutions('exec-job');
+        expect(executions).toHaveLength(1);
+        expect(executions[0].job_name).toBe('exec-job');
+        expect(executions[0].exit_code).toBe(0);
+    });
+
     it('should limit context size', () => {
         const chatId = 67890;
         for (let i = 0; i < 10; i++) {

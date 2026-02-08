@@ -103,8 +103,24 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
     });
 }
 
+
 export function parseClaudeOutput(result: ClaudeResult): unknown | null {
     if (result.exitCode !== 0 || result.timedOut) return null;
     try { return JSON.parse(result.stdout); }
     catch { return null; }
+}
+
+export function extractResponseText(result: ClaudeResult): string {
+    if (result.timedOut) return 'Claude Code timed out.';
+    if (result.exitCode !== 0) {
+        let text = `Claude Code exited with code ${result.exitCode}.`;
+        if (result.stderr) text += `\n\n${result.stderr.slice(0, 500)}`;
+        return text;
+    }
+    try {
+        const parsed = JSON.parse(result.stdout);
+        return parsed.result ?? parsed.text ?? result.stdout;
+    } catch {
+        return result.stdout || '(empty response)';
+    }
 }

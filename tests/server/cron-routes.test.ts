@@ -35,7 +35,7 @@ describe('Cron API Routes', () => {
         };
 
         (mockDb.getCronJob as any).mockReturnValue(undefined); // No existing
-        (mockDb.createCronJob as any).mockReturnValue({ ...payload, id: 1, enabled: 1 });
+        (mockDb.createCronJob as any).mockReturnValue({ ...payload, id: 1, enabled: 1, timezone: 'America/Chicago' });
 
         const response = await app.inject({
             method: 'POST',
@@ -111,7 +111,7 @@ describe('Cron API Routes', () => {
     });
 
     it('PATCH /api/cron/:name should update a job', async () => {
-        const updatedJob = { id: 1, name: 'patch-job', schedule: '5 * * * *', prompt: 'updated', output: 'log', enabled: 1 };
+        const updatedJob = { id: 1, name: 'patch-job', schedule: '5 * * * *', prompt: 'updated', output: 'log', enabled: 1, timezone: 'America/Chicago' };
         (mockDb.updateCronJob as any).mockReturnValue(updatedJob);
 
         const response = await app.inject({
@@ -135,5 +135,46 @@ describe('Cron API Routes', () => {
         });
 
         expect(response.statusCode).toBe(404);
+    });
+
+    it('POST /api/cron should create a job with custom timezone', async () => {
+        const payload = {
+            name: 'tz-job',
+            schedule: '0 9 * * *',
+            prompt: 'good morning',
+            output: 'log',
+            timezone: 'America/New_York'
+        };
+
+        (mockDb.getCronJob as any).mockReturnValue(undefined);
+        (mockDb.createCronJob as any).mockReturnValue({ ...payload, id: 2, enabled: 1 });
+
+        const response = await app.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload
+        });
+
+        expect(response.statusCode).toBe(201);
+        expect(mockDb.createCronJob).toHaveBeenCalledWith(expect.objectContaining({
+            timezone: 'America/New_York'
+        }));
+    });
+
+    it('PATCH /api/cron/:name should update timezone', async () => {
+        const updatedJob = { id: 1, name: 'tz-patch', schedule: '0 9 * * *', prompt: 'test', output: 'log', enabled: 1, timezone: 'Europe/London' };
+        (mockDb.updateCronJob as any).mockReturnValue(updatedJob);
+
+        const response = await app.inject({
+            method: 'PATCH',
+            url: '/api/cron/tz-patch',
+            payload: { timezone: 'Europe/London' }
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().job.timezone).toBe('Europe/London');
+        expect(mockDb.updateCronJob).toHaveBeenCalledWith('tz-patch', expect.objectContaining({
+            timezone: 'Europe/London'
+        }));
     });
 });

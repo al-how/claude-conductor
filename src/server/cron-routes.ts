@@ -48,7 +48,8 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
             schedule: body.schedule,
             prompt: body.prompt,
             output: body.output,
-            enabled: body.enabled ?? 1
+            enabled: body.enabled ?? 1,
+            timezone: body.timezone
         });
 
         scheduler.addJob(job);

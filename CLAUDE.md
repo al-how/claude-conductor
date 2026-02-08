@@ -8,6 +8,10 @@ Claude Conductor is a Docker container that wraps Claude Code CLI with schedulin
 
 The full design spec is at `docs/Claude Conductor.md`.
 
+## Windows Development
+- This project runs on Windows (likely with MSYS2/Git Bash). Always use platform-safe path handling: normalize paths, use case-insensitive comparisons, and avoid `shell: true` in spawn calls.
+- Test path logic for Windows edge cases (backslashes, drive letters, case sensitivity).
+
 ## Architecture
 
 Single Node.js process (the harness) manages triggers and spawns Claude Code CLI sessions as child processes.

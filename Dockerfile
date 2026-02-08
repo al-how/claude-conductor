@@ -11,9 +11,9 @@ FROM node:20-slim
 
 RUN apt-get update && apt-get install -y ca-certificates curl git && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user BEFORE installing Claude CLI
+# Remove default node user (UID 1000) and create claude user in its place
 # so the installer puts the binary in /home/claude/.local/bin
-RUN useradd -m -u 1000 -s /bin/bash claude
+RUN userdel -r node && useradd -m -u 1000 -s /bin/bash claude
 
 # Copy built app and install production deps as root
 WORKDIR /app

@@ -12,7 +12,13 @@
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
       "Bash(ssh:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git stash:*)",
+      "Bash(git worktree add:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

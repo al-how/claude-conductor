@@ -119,7 +119,22 @@ export function extractResponseText(result: ClaudeResult): string {
     }
     try {
         const parsed = JSON.parse(result.stdout);
-        return parsed.result ?? parsed.text ?? result.stdout;
+
+        // Extract actual response text
+        const text = parsed.result ?? parsed.text;
+        if (text) return text;
+
+        // Handle known error subtypes with no response text
+        if (parsed.subtype === 'error_max_turns') {
+            return `Claude ran out of turns (${parsed.num_turns ?? '?'} used). The task may be partially complete — try a follow-up message to continue.`;
+        }
+
+        // Generic fallback for parsed JSON with no text content
+        if (parsed.type === 'result' && !text) {
+            return `Claude finished without a response (${parsed.subtype ?? 'unknown reason'}).`;
+        }
+
+        return result.stdout || '(empty response)';
     } catch {
         return result.stdout || '(empty response)';
     }

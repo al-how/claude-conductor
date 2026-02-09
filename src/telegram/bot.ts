@@ -1,6 +1,6 @@
 import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
-import { chunkMessage, downloadTelegramFile, escapePromptContent } from './utils.js';
+import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
@@ -210,12 +210,19 @@ export class TelegramBot {
                         }
                     }
 
-                    const chunks = chunkMessage(responseText);
-                    for (const chunk of chunks) {
+                    const htmlText = markdownToTelegramHtml(responseText);
+                    const htmlChunks = chunkMessage(htmlText);
+                    const plainChunks = chunkMessage(responseText);
+                    for (let i = 0; i < htmlChunks.length; i++) {
                         try {
-                            await ctx.reply(chunk);
+                            await ctx.reply(htmlChunks[i], { parse_mode: 'HTML' });
                         } catch (e) {
-                            this.logger?.error({ err: e }, 'Failed to send Telegram reply');
+                            this.logger?.warn({ err: e }, 'HTML reply failed, falling back to plain text');
+                            try {
+                                await ctx.reply(plainChunks[i] || htmlChunks[i]);
+                            } catch (e2) {
+                                this.logger?.error({ err: e2 }, 'Failed to send Telegram reply');
+                            }
                         }
                     }
                 },
@@ -230,9 +237,15 @@ export class TelegramBot {
     }
 
     public async sendMessage(chatId: number, text: string): Promise<void> {
-        const chunks = chunkMessage(text);
+        const htmlText = markdownToTelegramHtml(text);
+        const chunks = chunkMessage(htmlText);
         for (const chunk of chunks) {
-            await this.bot.api.sendMessage(chatId, chunk);
+            try {
+                await this.bot.api.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+            } catch {
+                // Fallback to plain text if HTML fails
+                await this.bot.api.sendMessage(chatId, text.slice(0, 4096));
+            }
         }
     }
 

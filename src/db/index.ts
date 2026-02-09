@@ -60,6 +60,13 @@ export class DatabaseManager {
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS conversation_clears (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          chat_id INTEGER NOT NULL,
+          cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversation_clears_chat_id ON conversation_clears(chat_id);
+
         CREATE TABLE IF NOT EXISTS cron_executions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           job_name TEXT NOT NULL,
@@ -89,12 +96,34 @@ export class DatabaseManager {
     }
 
     public getRecentContext(chatId: number, limit: number = 25): ConversationMessage[] {
-        const stmt = this.db.prepare(
-            'SELECT * FROM conversations WHERE chat_id = ? ORDER BY id DESC LIMIT ?'
+        // Find the most recent clear marker for this chat
+        const clearStmt = this.db.prepare(
+            'SELECT cleared_at FROM conversation_clears WHERE chat_id = ? ORDER BY id DESC LIMIT 1'
         );
-        const rows = stmt.all(chatId, limit) as ConversationMessage[];
+        const clearRow = clearStmt.get(chatId) as { cleared_at: string } | undefined;
+
+        let stmt;
+        let rows: ConversationMessage[];
+        if (clearRow) {
+            stmt = this.db.prepare(
+                'SELECT * FROM conversations WHERE chat_id = ? AND created_at > ? ORDER BY id DESC LIMIT ?'
+            );
+            rows = stmt.all(chatId, clearRow.cleared_at, limit) as ConversationMessage[];
+        } else {
+            stmt = this.db.prepare(
+                'SELECT * FROM conversations WHERE chat_id = ? ORDER BY id DESC LIMIT ?'
+            );
+            rows = stmt.all(chatId, limit) as ConversationMessage[];
+        }
         // Return in chronological order (oldest first) for context injection
         return rows.reverse();
+    }
+
+    public clearConversation(chatId: number): void {
+        const stmt = this.db.prepare(
+            'INSERT INTO conversation_clears (chat_id) VALUES (?)'
+        );
+        stmt.run(chatId);
     }
 
     public close() {

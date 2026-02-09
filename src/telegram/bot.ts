@@ -74,8 +74,17 @@ export class TelegramBot {
         this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear'));
 
         this.bot.command('clear', async (ctx) => {
-            // TODO: Implement conversation clearing logic if needed (e.g. new session ID)
-            await ctx.reply('Conversation context cleared (simulated).');
+            if (this.db) {
+                try {
+                    this.db.clearConversation(ctx.chat!.id);
+                    await ctx.reply('Conversation context cleared.');
+                } catch (e) {
+                    this.logger?.error({ err: e }, 'Failed to clear conversation');
+                    await ctx.reply('Failed to clear conversation context.');
+                }
+            } else {
+                await ctx.reply('Database not connected.');
+            }
         });
 
         this.bot.on('message:text', async (ctx) => {

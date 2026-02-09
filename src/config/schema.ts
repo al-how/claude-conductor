@@ -6,7 +6,10 @@ const TelegramConfigSchema = z.object({
 });
 
 export const CronJobSchema = z.object({
-    name: z.string().min(1),
+    name: z.string()
+        .min(1)
+        .max(64)
+        .regex(/^[a-zA-Z0-9_-]+$/, 'Job name must contain only letters, numbers, hyphens, and underscores'),
     schedule: z.string().min(1),
     prompt: z.string().min(1),
     output: z.enum(['telegram', 'log', 'webhook', 'silent']).default('log'),

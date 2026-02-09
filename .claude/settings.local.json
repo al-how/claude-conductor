@@ -11,7 +11,8 @@
       "Bash(npx vitest:*)",
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
-      "Bash(ssh:*)"
+      "Bash(ssh:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

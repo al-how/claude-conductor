@@ -1,6 +1,6 @@
 import { Cron } from 'croner';
-import { join } from 'node:path';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager, CronJobRow } from '../db/index.js';
@@ -97,15 +97,15 @@ export class CronScheduler {
      * Read the history file for a job and return previous entries as context.
      * History files live at {vaultPath}/agent-files/{jobName}-history.md
      */
-    private getHistoryContext(jobName: string): string {
+    private async getHistoryContext(jobName: string): Promise<string> {
         const historyPath = join(this.config.vaultPath, 'agent-files', `${jobName}-history.md`);
-        if (!existsSync(historyPath)) return '';
 
         try {
-            const content = readFileSync(historyPath, 'utf-8').trim();
+            const content = (await readFile(historyPath, 'utf-8')).trim();
             if (!content) return '';
             return `\n\n---\nPREVIOUS RESULTS — do not repeat these stories/items:\n${content}\n---\n`;
-        } catch (err) {
+        } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') return '';
             this.logger.warn({ err, jobName }, 'Failed to read history file');
             return '';
         }
@@ -114,18 +114,28 @@ export class CronScheduler {
     /**
      * Append today's results to the history file with a date header.
      */
-    private appendToHistoryFile(jobName: string, responseText: string): void {
+    private async appendToHistoryFile(jobName: string, responseText: string): Promise<void> {
         const historyPath = join(this.config.vaultPath, 'agent-files', `${jobName}-history.md`);
         const today = new Date().toISOString().split('T')[0];
-        const entry = `\n## ${today}\n${responseText}\n`;
+
+        const maxEntryLength = 1000;
+        const trimmedResponse = responseText.length > maxEntryLength
+            ? responseText.slice(0, maxEntryLength) + '\n[...truncated]'
+            : responseText;
+
+        const entry = `\n## ${today}\n${trimmedResponse}\n`;
 
         try {
+            await mkdir(dirname(historyPath), { recursive: true });
+
             let existing = '';
-            if (existsSync(historyPath)) {
-                existing = readFileSync(historyPath, 'utf-8');
+            try {
+                existing = await readFile(historyPath, 'utf-8');
+            } catch (err: unknown) {
+                if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
             }
             const updated = this.trimHistory(existing + entry, 14);
-            writeFileSync(historyPath, updated, 'utf-8');
+            await writeFile(historyPath, updated, 'utf-8');
             this.logger.debug({ jobName, historyPath }, 'Updated history file');
         } catch (err) {
             this.logger.warn({ err, jobName }, 'Failed to update history file');
@@ -143,7 +153,7 @@ export class CronScheduler {
         const sections = content.split(/(?=^## \d{4}-\d{2}-\d{2})/m);
         const kept = sections.filter(section => {
             const match = section.match(/^## (\d{4}-\d{2}-\d{2})/);
-            if (!match) return true; // Keep non-dated content (e.g. preamble)
+            if (!match) return false; // Discard non-dated content
             return new Date(match[1]) >= cutoff;
         });
 
@@ -155,7 +165,7 @@ export class CronScheduler {
         const startTime = new Date().toISOString();
 
         // Inject history context into the prompt for dedup
-        const historyContext = this.getHistoryContext(job.name);
+        const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
 
         this.config.dispatcher.enqueue({
@@ -186,7 +196,7 @@ export class CronScheduler {
 
                 // Save to history for dedup on next run
                 if (result.exitCode === 0 && responseText.trim()) {
-                    this.appendToHistoryFile(job.name, responseText);
+                    await this.appendToHistoryFile(job.name, responseText);
                 }
 
                 // Route output

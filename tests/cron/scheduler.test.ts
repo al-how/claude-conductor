@@ -136,12 +136,14 @@ describe('CronScheduler', () => {
             created_at: '', updated_at: ''
         };
 
-        // Capture the onComplete callback from enqueue
+        // Capture the onComplete callback from enqueue and await it
+        let onCompletePromise: Promise<void>;
         (mockDispatcher.enqueue as any).mockImplementation((task: any) => {
-            task.onComplete({ exitCode: 0, stdout: '{"result":"test output"}', stderr: '', timedOut: false });
+            onCompletePromise = task.onComplete({ exitCode: 0, stdout: '{"result":"test output"}', stderr: '', timedOut: false });
         });
 
         await (telegramScheduler as any).executeJob(job);
+        await onCompletePromise!;
 
         expect(mockSendTelegram).toHaveBeenCalledWith('[tg-job]\n\ntest output');
         telegramScheduler.stop();
@@ -154,11 +156,13 @@ describe('CronScheduler', () => {
             created_at: '', updated_at: ''
         };
 
+        let onCompletePromise: Promise<void>;
         (mockDispatcher.enqueue as any).mockImplementation((task: any) => {
-            task.onComplete({ exitCode: 0, stdout: '{"result":"logged"}', stderr: '', timedOut: false });
+            onCompletePromise = task.onComplete({ exitCode: 0, stdout: '{"result":"logged"}', stderr: '', timedOut: false });
         });
 
         await (scheduler as any).executeJob(job);
+        await onCompletePromise!;
 
         expect(mockLogger.info).toHaveBeenCalledWith(
             expect.objectContaining({ name: 'log-job' }),
@@ -173,11 +177,13 @@ describe('CronScheduler', () => {
             created_at: '', updated_at: ''
         };
 
+        let onCompletePromise: Promise<void>;
         (mockDispatcher.enqueue as any).mockImplementation((task: any) => {
-            task.onComplete({ exitCode: 0, stdout: '{"result":"fallback"}', stderr: '', timedOut: false });
+            onCompletePromise = task.onComplete({ exitCode: 0, stdout: '{"result":"fallback"}', stderr: '', timedOut: false });
         });
 
         await (scheduler as any).executeJob(job);
+        await onCompletePromise!;
 
         expect(mockLogger.warn).toHaveBeenCalledWith(
             expect.objectContaining({ name: 'fallback-job' }),
@@ -201,11 +207,13 @@ describe('CronScheduler', () => {
             created_at: '', updated_at: ''
         };
 
+        let onErrorPromise: Promise<void>;
         (mockDispatcher.enqueue as any).mockImplementation((task: any) => {
-            task.onError(new Error('something broke'));
+            onErrorPromise = task.onError(new Error('something broke'));
         });
 
         await (telegramScheduler as any).executeJob(job);
+        await onErrorPromise!;
 
         expect(mockSendTelegram).toHaveBeenCalledWith('[err-job] Error: something broke');
         expect(mockDb.logCronExecution).toHaveBeenCalledWith(

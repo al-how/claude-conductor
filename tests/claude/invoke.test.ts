@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildClaudeArgs, parseClaudeOutput, type ClaudeResult } from '../../src/claude/invoke.js';
+import { buildClaudeArgs, parseClaudeOutput, extractResponseText, type ClaudeResult } from '../../src/claude/invoke.js';
 
 describe('buildClaudeArgs', () => {
     it('should build basic args with prompt', () => {
@@ -75,5 +75,59 @@ describe('parseClaudeOutput', () => {
     it('should return null on timeout', () => {
         const result: ClaudeResult = { exitCode: -1, stdout: '', stderr: '', timedOut: true };
         expect(parseClaudeOutput(result)).toBeNull();
+    });
+});
+
+describe('extractResponseText', () => {
+    it('should return result field from JSON', () => {
+        const result: ClaudeResult = { exitCode: 0, stdout: '{"result":"hello"}', stderr: '', timedOut: false };
+        expect(extractResponseText(result)).toBe('hello');
+    });
+
+    it('should return text field when result is absent', () => {
+        const result: ClaudeResult = { exitCode: 0, stdout: '{"text":"world"}', stderr: '', timedOut: false };
+        expect(extractResponseText(result)).toBe('world');
+    });
+
+    it('should return friendly message for error_max_turns', () => {
+        const stdout = JSON.stringify({
+            type: 'result',
+            subtype: 'error_max_turns',
+            is_error: false,
+            num_turns: 26,
+        });
+        const result: ClaudeResult = { exitCode: 0, stdout, stderr: '', timedOut: false };
+        const text = extractResponseText(result);
+        expect(text).toContain('ran out of turns');
+        expect(text).toContain('26');
+    });
+
+    it('should return generic message for result JSON with no text', () => {
+        const stdout = JSON.stringify({ type: 'result', subtype: 'some_other_reason' });
+        const result: ClaudeResult = { exitCode: 0, stdout, stderr: '', timedOut: false };
+        expect(extractResponseText(result)).toContain('finished without a response');
+        expect(extractResponseText(result)).toContain('some_other_reason');
+    });
+
+    it('should return timeout message when timed out', () => {
+        const result: ClaudeResult = { exitCode: -1, stdout: '', stderr: '', timedOut: true };
+        expect(extractResponseText(result)).toBe('Claude Code timed out.');
+    });
+
+    it('should return error message with stderr for non-zero exit', () => {
+        const result: ClaudeResult = { exitCode: 1, stdout: '', stderr: 'something broke', timedOut: false };
+        const text = extractResponseText(result);
+        expect(text).toContain('exited with code 1');
+        expect(text).toContain('something broke');
+    });
+
+    it('should return raw stdout for non-JSON output', () => {
+        const result: ClaudeResult = { exitCode: 0, stdout: 'plain text response', stderr: '', timedOut: false };
+        expect(extractResponseText(result)).toBe('plain text response');
+    });
+
+    it('should return (empty response) for empty stdout', () => {
+        const result: ClaudeResult = { exitCode: 0, stdout: '', stderr: '', timedOut: false };
+        expect(extractResponseText(result)).toBe('(empty response)');
     });
 });

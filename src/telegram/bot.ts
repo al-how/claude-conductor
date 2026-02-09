@@ -144,6 +144,13 @@ export class TelegramBot {
 
         if (this.dispatcher) {
             await ctx.replyWithChatAction('typing');
+            const typingInterval = setInterval(async () => {
+                try {
+                    await ctx.replyWithChatAction('typing');
+                } catch {
+                    // Chat may have been deleted or bot blocked — ignore
+                }
+            }, 5000);
 
             // Build file attachment block
             let fileBlock = '';
@@ -179,6 +186,7 @@ export class TelegramBot {
                 logger: this.logger,
                 dangerouslySkipPermissions: true,
                 onComplete: async (result) => {
+                    clearInterval(typingInterval);
                     let responseText = extractResponseText(result);
 
                     if (!responseText || responseText.trim().length === 0) {
@@ -203,6 +211,7 @@ export class TelegramBot {
                     }
                 },
                 onError: async (err) => {
+                    clearInterval(typingInterval);
                     await ctx.reply(`Error: ${err.message}`);
                 }
             });

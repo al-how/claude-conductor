@@ -125,6 +125,14 @@ export class TelegramBot {
     }
 
     private async handleUserMessage(ctx: Context, text: string, filePaths?: string[]) {
+        // Extract reply context if replying to a message
+        let replyContext = '';
+        if (ctx.message?.reply_to_message) {
+            const replied = ctx.message.reply_to_message;
+            const quotedText = (replied as any).text || (replied as any).caption || '(media message)';
+            replyContext = `[Replying to: "${quotedText}"]\n`;
+        }
+
         // Save user message
         if (this.db) {
             try {
@@ -147,7 +155,7 @@ export class TelegramBot {
             }
 
             // Build prompt with conversation history for context
-            let prompt = `${fileBlock}${text}`;
+            let prompt = `${replyContext}${fileBlock}${text}`;
             if (this.db) {
                 try {
                     const history = this.db.getRecentContext(ctx.chat!.id, 20);
@@ -156,7 +164,7 @@ export class TelegramBot {
                         const historyBlock = prior
                             .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
                             .join('\n\n');
-                        prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}Human: ${text}`;
+                        prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}${replyContext}Human: ${text}`;
                     }
                 } catch (e) {
                     this.logger?.error({ err: e }, 'Failed to load conversation history');

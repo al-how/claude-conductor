@@ -53,6 +53,10 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
     args.push('--max-turns', String(maxTurns));
     args.push('--output-format', outputFormat);
 
+    if (outputFormat === 'stream-json') {
+        args.push('--verbose');
+    }
+
     return args;
 }
 

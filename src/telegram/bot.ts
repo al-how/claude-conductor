@@ -202,9 +202,9 @@ export class TelegramBot {
             }
         }, 5000);
 
-        // Look up existing Claude Code session for this chat
+        // Check if this chat has an existing Claude Code session to continue
         const chatId = ctx.chat!.id;
-        const existingSessionId = this.db?.getSessionId(chatId);
+        const hasSession = !!this.db?.getSessionId(chatId);
 
         this.dispatcher!.enqueue({
             id: taskId,
@@ -213,9 +213,9 @@ export class TelegramBot {
             workingDir: this.workingDir,
             logger: this.logger,
             dangerouslySkipPermissions: true,
-            ...(existingSessionId ? { sessionId: existingSessionId, resume: true, forkSession: true } : {}),
+            ...(hasSession ? { continue: true } : {}),
             onComplete: async (result: ClaudeResult) => {
-                // Persist the session ID from Claude Code's output
+                // Persist the session ID so we know to use --continue next time
                 if (result.sessionId && this.db) {
                     try { this.db.saveSessionId(chatId, result.sessionId); }
                     catch (e) { this.logger?.error({ err: e }, 'Failed to save session ID'); }

@@ -65,7 +65,7 @@ export class CronScheduler {
             }, () => this.executeJob(job));
 
             this.jobs.set(job.name, cron);
-            this.logger.info({ name: job.name, schedule: job.schedule, timezone: job.timezone }, 'Scheduled job');
+            this.logger.info({ event: 'cron_scheduled', name: job.name, schedule: job.schedule, timezone: job.timezone }, 'Scheduled job');
         } catch (error) {
             this.logger.error({ err: error, name: job.name, schedule: job.schedule }, 'Failed to schedule job');
         }
@@ -161,7 +161,7 @@ export class CronScheduler {
     }
 
     private async executeJob(job: CronJobRow): Promise<void> {
-        this.logger.info({ name: job.name }, 'Executing cron job');
+        this.logger.info({ event: 'cron_triggered', name: job.name }, 'Executing cron job');
         const startTime = new Date().toISOString();
 
         // Inject history context into the prompt for dedup

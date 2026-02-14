@@ -16,7 +16,7 @@ export async function main() {
         level: process.env.LOG_LEVEL || 'info',
     });
 
-    logger.info('Claude Conductor starting');
+    logger.info({ event: 'startup' }, 'Claude Conductor starting');
 
     // Load config
     const config = loadConfig();
@@ -131,7 +131,7 @@ Schedule uses standard cron expressions. Output options: telegram, log, silent.
     // Graceful shutdown
     /* v8 ignore start */
     const shutdown = async () => {
-        logger.info('Shutting down...');
+        logger.info({ event: 'shutdown' }, 'Shutting down...');
         scheduler.stop();
         await app.close();
         if (bot) await bot.stop();

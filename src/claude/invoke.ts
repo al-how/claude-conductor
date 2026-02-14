@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
 import type { Logger } from 'pino';
 
@@ -22,6 +23,7 @@ export interface ClaudeResult {
     stdout: string;
     stderr: string;
     timedOut: boolean;
+    numTurns?: number;
 }
 
 export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
@@ -33,7 +35,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
         dangerouslySkipPermissions = false,
         noSessionPersistence = false,
         maxTurns = 25,
-        outputFormat = 'json',
+        outputFormat = 'stream-json',
         appendSystemPrompt,
     } = options;
 
@@ -54,6 +56,34 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
     return args;
 }
 
+/**
+ * Extract the "key argument" from a tool's input for logging purposes.
+ */
+function extractToolArg(toolName: string, input: Record<string, unknown>): string | undefined {
+    switch (toolName) {
+        case 'Read':
+        case 'Write':
+        case 'Edit':
+            return input.file_path as string | undefined;
+        case 'Glob':
+            return input.pattern as string | undefined;
+        case 'Grep':
+            return input.pattern as string | undefined;
+        case 'Bash': {
+            const cmd = input.command as string | undefined;
+            return cmd ? cmd.slice(0, 60) : undefined;
+        }
+        case 'WebSearch':
+            return input.query as string | undefined;
+        case 'WebFetch':
+            return input.url as string | undefined;
+        case 'Task':
+            return input.description as string | undefined;
+        default:
+            return undefined;
+    }
+}
+
 export async function invokeClaude(options: ClaudeInvokeOptions): Promise<ClaudeResult> {
     const vaultDefault = process.env.VAULT_PATH || '/vault';
     const { workingDir: requestedDir = vaultDefault, timeout = 300_000, logger } = options;
@@ -65,11 +95,18 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
     }
     logger?.debug({ args, workingDir }, 'Invoking Claude Code');
 
+    const effectiveFormat = options.outputFormat ?? 'stream-json';
+
     return new Promise((resolve) => {
-        let stdout = '';
         let stderr = '';
         let timedOut = false;
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+        // For stream-json: we reconstruct a final result object
+        // For json/text: we collect stdout as before
+        let stdout = '';
+        let resultJson: Record<string, unknown> | null = null;
+        let numTurns: number | undefined;
 
         const child = spawn('claude', args, {
             cwd: workingDir,
@@ -77,8 +114,49 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
-        child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
         child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+        if (effectiveFormat === 'stream-json') {
+            // Line-by-line parsing of stream-json events
+            const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+
+            rl.on('line', (line) => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+
+                let parsed: Record<string, unknown>;
+                try {
+                    parsed = JSON.parse(trimmed);
+                } catch {
+                    // Skip non-JSON lines (e.g. stderr bleed, progress spinners)
+                    return;
+                }
+
+                const eventType = parsed.type as string | undefined;
+
+                // Log tool_use content blocks
+                if (eventType === 'content_block_start' || eventType === 'assistant') {
+                    const content = parsed.content_block ?? parsed;
+                    handleContentEvent(content as Record<string, unknown>, logger);
+                }
+
+                // Handle assistant message with content array
+                if (eventType === 'assistant' && Array.isArray(parsed.content)) {
+                    for (const block of parsed.content) {
+                        handleContentEvent(block as Record<string, unknown>, logger);
+                    }
+                }
+
+                // Capture the final result event
+                if (eventType === 'result') {
+                    resultJson = parsed;
+                    numTurns = parsed.num_turns as number | undefined;
+                }
+            });
+        } else {
+            // Legacy json/text mode — collect stdout as a string
+            child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+        }
 
         if (timeout > 0) {
             timeoutHandle = setTimeout(() => {
@@ -92,17 +170,42 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         child.on('error', (err) => {
             if (timeoutHandle) clearTimeout(timeoutHandle);
             logger?.error({ err }, 'Claude Code spawn error');
-            resolve({ exitCode: -1, stdout, stderr: stderr || err.message, timedOut });
+            resolve({ exitCode: -1, stdout, stderr: stderr || err.message, timedOut, numTurns });
         });
 
         child.on('close', (code) => {
             if (timeoutHandle) clearTimeout(timeoutHandle);
             logger?.debug({ exitCode: code, timedOut }, 'Claude Code finished');
-            resolve({ exitCode: code ?? -1, stdout, stderr, timedOut });
+
+            // For stream-json, reconstruct a JSON string that matches the legacy format
+            if (effectiveFormat === 'stream-json' && resultJson) {
+                const compat: Record<string, unknown> = {
+                    type: resultJson.type,
+                    result: resultJson.result ?? resultJson.text,
+                    text: resultJson.text ?? resultJson.result,
+                    subtype: resultJson.subtype,
+                    num_turns: resultJson.num_turns,
+                };
+                // Remove undefined keys
+                for (const key of Object.keys(compat)) {
+                    if (compat[key] === undefined) delete compat[key];
+                }
+                stdout = JSON.stringify(compat);
+            }
+
+            resolve({ exitCode: code ?? -1, stdout, stderr, timedOut, numTurns });
         });
     });
 }
 
+function handleContentEvent(block: Record<string, unknown>, logger?: Logger): void {
+    if (block.type === 'tool_use') {
+        const toolName = block.name as string || 'unknown';
+        const input = (block.input as Record<string, unknown>) || {};
+        const arg = extractToolArg(toolName, input);
+        logger?.info({ event: 'tool_use', tool: toolName, arg }, `Tool: ${toolName}`);
+    }
+}
 
 export function parseClaudeOutput(result: ClaudeResult): unknown | null {
     if (result.exitCode !== 0 || result.timedOut) return null;

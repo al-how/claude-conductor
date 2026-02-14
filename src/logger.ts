@@ -1,18 +1,17 @@
 import pino from 'pino';
+import createTransport from './logger-transport.js';
 
 export interface LoggerOptions {
     level?: string;
-    pretty?: boolean;
 }
 
 export function createLogger(options: LoggerOptions = {}) {
-    const { level = 'info', pretty = process.env.NODE_ENV !== 'production' } = options;
+    const { level = 'info' } = options;
+    const useJson = process.env.LOG_FORMAT === 'json';
 
-    return pino({
-        name: 'claude-harness',
-        level,
-        transport: pretty
-            ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' } }
-            : undefined
-    });
+    if (useJson) {
+        return pino({ name: 'claude-harness', level });
+    }
+
+    return pino({ name: 'claude-harness', level }, createTransport());
 }

@@ -90,7 +90,7 @@ export class TelegramBot {
 
         this.bot.on('message:text', async (ctx) => {
             const text = ctx.message.text;
-            this.logger?.info({ userId: ctx.from.id, text }, 'Received message');
+            this.logger?.info({ event: 'message_received', userId: ctx.from.id, text }, 'Received message');
             await this.handleUserMessage(ctx, text);
         });
 
@@ -231,7 +231,7 @@ export class TelegramBot {
                         catch (e) { this.logger?.error({ err: e }, 'Failed to save continuation notice to DB'); }
                     }
 
-                    this.logger?.info({ messageId, continuationDepth: continuationDepth + 1 }, 'Auto-continuing after max turns');
+                    this.logger?.info({ event: 'auto_continue', messageId, continuationDepth: continuationDepth + 1, maxDepth: 2 }, 'Auto-continuing after max turns');
 
                     // Build continuation prompt with history context
                     let continuationPrompt = 'Continue where you left off.';

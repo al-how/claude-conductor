@@ -19,7 +19,7 @@ export class Dispatcher {
 
     public enqueue(task: Task): void {
         this.queue.push(task);
-        this.logger?.debug({ taskId: task.id, queueLength: this.queue.length }, 'Task enqueued');
+        this.logger?.info({ event: 'session_queued', taskId: task.id, source: task.source, queueLength: this.queue.length }, 'Session queued');
         this.processQueue();
     }
 
@@ -34,15 +34,12 @@ export class Dispatcher {
                 const task = this.queue.shift();
                 if (!task) break;
 
-                this.logger?.info({ taskId: task.id, source: task.source }, 'Processing task');
+                const { id, source, onComplete, onError, ...invokeOptions } = task;
+
+                const startTime = Date.now();
+                this.logger?.info({ event: 'session_start', taskId: task.id, source: task.source, prompt: task.prompt.slice(0, 80) }, 'Session started');
 
                 try {
-                    // Identify if we need to clean up options before passing to invokeClaude
-                    // The Task interface extends ClaudeInvokeOptions, so we can pass it directly 
-                    // (extra props like id, source, onComplete are ignored by invokeClaude or valid JS)
-                    // But purely, let's pass just the options needed.
-                    const { id, source, onComplete, onError, ...invokeOptions } = task;
-
                     // Inject logger if not present and available
                     if (!invokeOptions.logger && this.logger) {
                         invokeOptions.logger = this.logger;
@@ -50,11 +47,15 @@ export class Dispatcher {
 
                     const result = await invokeClaude(invokeOptions);
 
+                    const duration = Math.round((Date.now() - startTime) / 1000);
+                    this.logger?.info({ event: 'session_complete', taskId: task.id, source: task.source, duration, numTurns: result.numTurns, exitCode: result.exitCode }, 'Session complete');
+
                     if (onComplete) {
                         await onComplete(result);
                     }
                 } catch (error) {
-                    this.logger?.error({ taskId: task.id, err: error }, 'Task processing failed');
+                    const duration = Math.round((Date.now() - startTime) / 1000);
+                    this.logger?.error({ event: 'session_failed', taskId: task.id, source: task.source, duration, err: error }, 'Session failed');
                     if (task.onError) {
                         await task.onError(error as Error);
                     }

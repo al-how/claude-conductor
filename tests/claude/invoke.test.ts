@@ -2,14 +2,20 @@ import { describe, it, expect, vi } from 'vitest';
 import { buildClaudeArgs, parseClaudeOutput, extractResponseText, type ClaudeResult } from '../../src/claude/invoke.js';
 
 describe('buildClaudeArgs', () => {
-    it('should build basic args with prompt', () => {
+    it('should build basic args with prompt and default to stream-json', () => {
         const args = buildClaudeArgs({ prompt: 'hello' });
         expect(args).toContain('-p');
         expect(args).toContain('hello');
         expect(args).toContain('--output-format');
-        expect(args).toContain('json');
+        expect(args).toContain('stream-json');
         expect(args).toContain('--max-turns');
         expect(args).toContain('25');
+    });
+
+    it('should use json output format when explicitly specified', () => {
+        const args = buildClaudeArgs({ prompt: 'hello', outputFormat: 'json' });
+        expect(args).toContain('--output-format');
+        expect(args).toContain('json');
     });
 
     it('should include --session-id when provided', () => {
@@ -129,5 +135,63 @@ describe('extractResponseText', () => {
     it('should return (empty response) for empty stdout', () => {
         const result: ClaudeResult = { exitCode: 0, stdout: '', stderr: '', timedOut: false };
         expect(extractResponseText(result)).toBe('(empty response)');
+    });
+});
+
+describe('stream-json result reconstruction', () => {
+    it('should produce backward-compatible JSON from a stream-json result event', () => {
+        // Simulates what invokeClaude does when it gets a result event from stream-json
+        const resultEvent = {
+            type: 'result',
+            result: 'Hello, world!',
+            text: 'Hello, world!',
+            num_turns: 3,
+        };
+
+        // Reconstruct as invokeClaude does
+        const compat: Record<string, unknown> = {
+            type: resultEvent.type,
+            result: resultEvent.result ?? resultEvent.text,
+            text: resultEvent.text ?? resultEvent.result,
+            subtype: undefined,
+            num_turns: resultEvent.num_turns,
+        };
+        for (const key of Object.keys(compat)) {
+            if (compat[key] === undefined) delete compat[key];
+        }
+        const stdout = JSON.stringify(compat);
+
+        const claudeResult: ClaudeResult = { exitCode: 0, stdout, stderr: '', timedOut: false, numTurns: 3 };
+        expect(extractResponseText(claudeResult)).toBe('Hello, world!');
+        expect(parseClaudeOutput(claudeResult)).toEqual({
+            type: 'result',
+            result: 'Hello, world!',
+            text: 'Hello, world!',
+            num_turns: 3,
+        });
+    });
+
+    it('should produce backward-compatible JSON for max_turns error', () => {
+        const resultEvent = {
+            type: 'result',
+            subtype: 'error_max_turns',
+            num_turns: 25,
+        };
+
+        const compat: Record<string, unknown> = {
+            type: resultEvent.type,
+            subtype: resultEvent.subtype,
+            num_turns: resultEvent.num_turns,
+        };
+        const stdout = JSON.stringify(compat);
+
+        const claudeResult: ClaudeResult = { exitCode: 0, stdout, stderr: '', timedOut: false, numTurns: 25 };
+        expect(extractResponseText(claudeResult)).toContain('ran out of turns');
+        expect(extractResponseText(claudeResult)).toContain('25');
+    });
+
+    it('should include numTurns in ClaudeResult', () => {
+        const result: ClaudeResult = { exitCode: 0, stdout: '{"result":"ok"}', stderr: '', timedOut: false, numTurns: 5 };
+        expect(result.numTurns).toBe(5);
     });
 });

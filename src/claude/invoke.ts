@@ -8,6 +8,7 @@ export interface ClaudeInvokeOptions {
     workingDir?: string;
     sessionId?: string;
     resume?: boolean;
+    forkSession?: boolean;
     allowedTools?: string[];
     dangerouslySkipPermissions?: boolean;
     noSessionPersistence?: boolean;
@@ -31,6 +32,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
         prompt,
         sessionId,
         resume = false,
+        forkSession = false,
         allowedTools,
         dangerouslySkipPermissions = false,
         noSessionPersistence = false,
@@ -43,6 +45,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
 
     if (sessionId) args.push('--session-id', sessionId);
     if (resume) args.push('--resume');
+    if (forkSession) args.push('--fork-session');
     if (dangerouslySkipPermissions) args.push('--dangerously-skip-permissions');
     if (noSessionPersistence) args.push('--no-session-persistence');
     if (allowedTools && allowedTools.length > 0) {

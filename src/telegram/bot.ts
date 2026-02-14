@@ -213,7 +213,7 @@ export class TelegramBot {
             workingDir: this.workingDir,
             logger: this.logger,
             dangerouslySkipPermissions: true,
-            ...(existingSessionId ? { sessionId: existingSessionId, resume: true } : {}),
+            ...(existingSessionId ? { sessionId: existingSessionId, resume: true, forkSession: true } : {}),
             onComplete: async (result: ClaudeResult) => {
                 // Persist the session ID from Claude Code's output
                 if (result.sessionId && this.db) {

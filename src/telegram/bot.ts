@@ -1,4 +1,5 @@
 import { Bot, Context } from 'grammy';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
 import { extractResponseText, isMaxTurnsError } from '../claude/invoke.js';
@@ -6,6 +7,12 @@ import type { ClaudeResult } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
+
+/** Convert a numeric Telegram chat ID to a deterministic UUID for Claude Code's --session-id. */
+function chatIdToUuid(chatId: number): string {
+    const hex = createHash('md5').update(String(chatId)).digest('hex');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 export interface TelegramBotConfig {
     token: string;
@@ -208,7 +215,7 @@ export class TelegramBot {
             workingDir: this.workingDir,
             logger: this.logger,
             dangerouslySkipPermissions: true,
-            sessionId: String(ctx.chat!.id),
+            sessionId: chatIdToUuid(ctx.chat!.id),
             resume: true,
             forkSession: true,
             onComplete: async (result: ClaudeResult) => {

@@ -27,7 +27,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:mcpindex.net)",
       "WebFetch(domain:www.pulsemcp.com)",
-      "WebFetch(domain:pypi.org)"
+      "WebFetch(domain:pypi.org)",
+      "Skill(claude-md-management:revise-claude-md)"
     ]
   }
 }

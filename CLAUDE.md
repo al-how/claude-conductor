@@ -20,7 +20,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 **Key components:**
 - **Dispatcher** — task queue with concurrency control (max 1 concurrent session)
-- **Telegram Bot** — 1:1 messaging interface (grammy or telegraf library)
+- **Telegram Bot** — 1:1 messaging interface (grammy library)
 - **Cron Scheduler** — YAML-configured scheduled tasks (croner or node-cron)
 - **Webhook Listener** — HTTP POST endpoints with auth and prompt templates
 - **Playwright Browser** — optional Chromium for automation tasks
@@ -33,6 +33,11 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 - **Database:** SQLite for conversation history and execution logs
 - **Config:** Single `config.yaml` at `/config/config.yaml`
 - **Browser:** Playwright with persistent profile
+
+## Build & Test
+
+- `npx tsc --noEmit` — type-check only
+- `npx tsc` — full build (emits to `dist/`)
 
 ## Claude Code Invocation Patterns
 
@@ -58,6 +63,13 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 | Data | `/data` | SQLite DB, execution logs, browser profile |
 | Claude Config | `/home/claude/.claude` | OAuth credentials, auto memory, skills, user rules |
 
+## MCP Servers
+
+- MCP servers are configured at **user scope** (`/home/claude/.claude.json`), not project scope — avoids interactive approval prompts in non-interactive `claude -p` sessions.
+- Active servers: n8n, home-assistant, AgentMail. Manage with `claude mcp list/add-json/disable/enable` inside the container.
+- Project-scoped `.mcp.json` goes at project root (`/vault/.mcp.json`), NOT inside `.claude/` — Claude Code does not read `.claude/.mcp.json`.
+- Cron jobs with `--allowedTools` won't have access to MCP tools unless explicitly listed.
+
 ## Implementation Phases
 
 1. **Foundation** — Dockerfile, config loading, Claude Code invocation wrapper, health check
@@ -65,6 +77,13 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 3. **Cron Scheduler** — config parsing, scheduled execution, output routing
 4. **Webhooks** — HTTP listener, auth middleware, prompt templates
 5. **Browser & Polish** — Playwright, noVNC, status dashboard
+
+## Claude JSON Output Schema
+
+With `--output-format json`, Claude returns: `{result?, text?, type, subtype?, num_turns?}`
+- `subtype: 'error_max_turns'` — turn limit hit (may include partial `result`/`text`)
+- `type: 'result'` with no `result`/`text` — finished without response
+- Auto-continuation on max turns is handled in `src/telegram/bot.ts` (max 2 retries)
 
 ## Design Constraints
 

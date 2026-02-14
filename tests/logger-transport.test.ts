@@ -113,6 +113,47 @@ describe('formatLogObject', () => {
             expect(out).toContain('🔄');
             expect(out).toContain('1/2');
         });
+
+        it('should format tool_result with lines and preview', () => {
+            const out = formatLogObject(log({ event: 'tool_result', lines: 42, preview: '# Weather Notes\n\nLast updated: 2026-02' }));
+            expect(out).toContain('📄');
+            expect(out).toContain('42 lines');
+            expect(out).toContain('# Weather Notes');
+        });
+
+        it('should replace newlines with ↵ in tool_result preview', () => {
+            const out = formatLogObject(log({ event: 'tool_result', lines: 3, preview: 'line1\nline2\nline3' }));
+            expect(out).toContain('line1↵line2↵line3');
+            expect(out).not.toContain('\n');
+        });
+
+        it('should handle tool_result with no preview', () => {
+            const out = formatLogObject(log({ event: 'tool_result', lines: 0 }));
+            expect(out).toContain('📄');
+            expect(out).toContain('0 lines');
+            expect(out).toContain('""');
+        });
+
+        it('should format assistant_text with preview', () => {
+            const out = formatLogObject(log({ event: 'assistant_text', preview: "I've checked the weather forecast." }));
+            expect(out).toContain('💭');
+            expect(out).toContain("I've checked the weather forecast.");
+        });
+
+        it('should truncate assistant_text preview to 80 chars', () => {
+            const longText = 'A'.repeat(100);
+            const out = formatLogObject(log({ event: 'assistant_text', preview: longText }));
+            expect(out).toContain('💭');
+            // The preview in the log object may be longer, but the formatter truncates to 80
+            expect(out).toContain('A'.repeat(80));
+            expect(out).not.toContain('A'.repeat(81));
+        });
+
+        it('should handle assistant_text with empty preview', () => {
+            const out = formatLogObject(log({ event: 'assistant_text', preview: '' }));
+            expect(out).toContain('💭');
+            expect(out).toContain('""');
+        });
     });
 
     describe('level-based fallback', () => {

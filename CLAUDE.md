@@ -43,7 +43,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 ```bash
 # Telegram (interactive, user-initiated)
-claude -p --session-id <chat-id> --resume --dangerously-skip-permissions --output-format json --max-turns 25
+claude -p --continue --dangerously-skip-permissions --output-format stream-json --max-turns 25
 
 # Cron (scheduled, read-only default)
 claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format json --max-turns 25
@@ -53,6 +53,14 @@ claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
 ```
 
 Working directory for all invocations: `/vault` (mounted Obsidian vault).
+
+## Claude Code CLI Session Flags
+
+- `--session-id` requires a **valid UUID** (not arbitrary strings like Telegram chat IDs)
+- `--session-id` + `--resume` or `--continue` **requires `--fork-session`** — but `--fork-session` creates a new session each time, so repeated use causes "already in use" errors
+- For session continuity, use `--continue` (without `--session-id`) — it continues the most recent persistent session
+- `--no-session-persistence` (used by cron) prevents those sessions from interfering with `--continue`
+- Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
 
 ## Container Volume Mounts
 
@@ -78,9 +86,12 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 4. **Webhooks** — HTTP listener, auth middleware, prompt templates
 5. **Browser & Polish** — Playwright, noVNC, status dashboard
 
-## Claude JSON Output Schema
+## Claude Output Schema
 
-With `--output-format json`, Claude returns: `{result?, text?, type, subtype?, num_turns?}`
+Default output format is `stream-json` (line-delimited JSON events). Key event types:
+- `system` (subtype `init`) — first event, includes `session_id`, `tools`, `model`
+- `assistant` — Claude's response messages and tool use
+- `result` — final event with `result`, `text`, `subtype`, `num_turns`, `session_id`
 - `subtype: 'error_max_turns'` — turn limit hit (may include partial `result`/`text`)
 - `type: 'result'` with no `result`/`text` — finished without response
 - Auto-continuation on max turns is handled in `src/telegram/bot.ts` (max 2 retries)

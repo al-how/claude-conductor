@@ -25,6 +25,8 @@ const EVENT_EMOJI: Record<string, string> = {
     cron_triggered: '⏰',
     cron_scheduled: '📋',
     tool_use: '🔧',
+    tool_result: '📄',
+    assistant_text: '💭',
     response_ready: '💬',
     auto_continue: '🔄',
 };
@@ -122,6 +124,16 @@ export function formatLogObject(log: Record<string, unknown>): string {
         const tool = log.tool || 'unknown';
         const arg = log.arg ? ` → ${log.arg}` : '';
         return `${time}    🔧 ${tool}${arg}`;
+    }
+    if (event === 'tool_result') {
+        const lines = log.lines ?? '?';
+        const preview = log.preview as string | undefined;
+        const truncated = preview ? preview.replace(/\n/g, '↵').slice(0, 200) : '';
+        return `${time}    📄 Tool result (${lines} lines): "${truncated}"`;
+    }
+    if (event === 'assistant_text') {
+        const preview = (log.preview as string || '').slice(0, 80);
+        return `${time}    💭 "${preview}"`;
     }
     if (event === 'response_ready') {
         const turns = log.numTurns != null ? `${log.numTurns} turns` : '';

@@ -146,7 +146,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
 
                 const eventType = parsed.type as string | undefined;
 
-                // Log tool_use content blocks
+                // Log tool_use and text content blocks
                 if (eventType === 'content_block_start' || eventType === 'assistant') {
                     const content = parsed.content_block ?? parsed;
                     handleContentEvent(content as Record<string, unknown>, logger);
@@ -157,6 +157,19 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                     for (const block of parsed.content) {
                         handleContentEvent(block as Record<string, unknown>, logger);
                     }
+                }
+
+                // Log tool results at debug level
+                if (eventType === 'tool_result') {
+                    const content = typeof parsed.content === 'string'
+                        ? parsed.content
+                        : JSON.stringify(parsed.content);
+                    const lines = content.split('\n').length;
+                    const preview = content.slice(0, 200);
+                    logger?.debug(
+                        { event: 'tool_result', toolUseId: parsed.tool_use_id, lines, preview },
+                        `Tool result: ${lines} lines`
+                    );
                 }
 
                 // Capture session_id from any event (first one wins)
@@ -221,6 +234,13 @@ function handleContentEvent(block: Record<string, unknown>, logger?: Logger): vo
         const input = (block.input as Record<string, unknown>) || {};
         const arg = extractToolArg(toolName, input);
         logger?.info({ event: 'tool_use', tool: toolName, arg }, `Tool: ${toolName}`);
+    }
+    if (block.type === 'text' && block.text) {
+        const preview = (block.text as string).slice(0, 80);
+        logger?.info(
+            { event: 'assistant_text', preview },
+            'Assistant response'
+        );
     }
 }
 

@@ -1,5 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
-import { buildClaudeArgs, parseClaudeOutput, extractResponseText, type ClaudeResult } from '../../src/claude/invoke.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { buildClaudeArgs, parseClaudeOutput, extractResponseText, invokeClaude, type ClaudeResult } from '../../src/claude/invoke.js';
+import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
+import * as childProcess from 'node:child_process';
+
+vi.mock('node:child_process', async (importOriginal) => {
+    const actual = await importOriginal<typeof childProcess>();
+    return { ...actual, spawn: vi.fn() };
+});
 
 describe('buildClaudeArgs', () => {
     it('should build basic args with prompt and default to stream-json', () => {
@@ -193,5 +201,145 @@ describe('stream-json result reconstruction', () => {
     it('should include numTurns in ClaudeResult', () => {
         const result: ClaudeResult = { exitCode: 0, stdout: '{"result":"ok"}', stderr: '', timedOut: false, numTurns: 5 };
         expect(result.numTurns).toBe(5);
+    });
+});
+
+describe('stream-json event parsing', () => {
+    function createMockChild(lines: string[]) {
+        const stdout = new Readable({ read() {} });
+        const stderr = new Readable({ read() {} });
+        const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: Readable; killed: boolean; kill: () => void };
+        child.stdout = stdout;
+        child.stderr = stderr;
+        child.killed = false;
+        child.kill = () => { child.killed = true; };
+
+        // Push lines then close after a tick
+        setTimeout(() => {
+            for (const line of lines) {
+                stdout.push(line + '\n');
+            }
+            stdout.push(null);
+            stderr.push(null);
+            child.emit('close', 0);
+        }, 10);
+
+        return child;
+    }
+
+    function createMockLogger() {
+        return {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            child: vi.fn(),
+            level: 'debug',
+        };
+    }
+
+    const mockedSpawn = vi.mocked(childProcess.spawn);
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should log tool_result events at debug level', async () => {
+        const mockLogger = createMockLogger();
+        const lines = [
+            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_123', content: 'file contents here' }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'tool_result', toolUseId: 'tu_123', lines: 1, preview: 'file contents here' }),
+            expect.stringContaining('Tool result')
+        );
+    });
+
+    it('should log multi-line tool_result with correct line count', async () => {
+        const mockLogger = createMockLogger();
+        const content = 'line1\nline2\nline3\nline4\nline5';
+        const lines = [
+            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_456', content }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'tool_result', lines: 5 }),
+            expect.stringContaining('5 lines')
+        );
+    });
+
+    it('should log text content blocks at info level', async () => {
+        const mockLogger = createMockLogger();
+        const lines = [
+            JSON.stringify({ type: 'assistant', content: [{ type: 'text', text: 'Here is my response to your question.' }] }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'assistant_text', preview: 'Here is my response to your question.' }),
+            'Assistant response'
+        );
+    });
+
+    it('should truncate assistant text preview to 80 chars', async () => {
+        const mockLogger = createMockLogger();
+        const longText = 'A'.repeat(200);
+        const lines = [
+            JSON.stringify({ type: 'assistant', content: [{ type: 'text', text: longText }] }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'assistant_text', preview: 'A'.repeat(80) }),
+            'Assistant response'
+        );
+    });
+
+    it('should truncate tool_result preview to 200 chars', async () => {
+        const mockLogger = createMockLogger();
+        const longContent = 'B'.repeat(500);
+        const lines = [
+            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_789', content: longContent }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'tool_result', preview: 'B'.repeat(200) }),
+            expect.any(String)
+        );
+    });
+
+    it('should handle tool_result with non-string content', async () => {
+        const mockLogger = createMockLogger();
+        const lines = [
+            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_obj', content: { key: 'value' } }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({ prompt: 'test', logger: mockLogger as never });
+
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'tool_result', preview: '{"key":"value"}' }),
+            expect.any(String)
+        );
     });
 });

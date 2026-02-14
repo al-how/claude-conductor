@@ -28,7 +28,9 @@
       "WebFetch(domain:mcpindex.net)",
       "WebFetch(domain:www.pulsemcp.com)",
       "WebFetch(domain:pypi.org)",
-      "Skill(claude-md-management:revise-claude-md)"
+      "Skill(claude-md-management:revise-claude-md)",
+      "Bash(gh issue view:*)",
+      "Bash(find:*)"
     ]
   }
 }

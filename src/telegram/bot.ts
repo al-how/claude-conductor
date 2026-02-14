@@ -208,6 +208,8 @@ export class TelegramBot {
             workingDir: this.workingDir,
             logger: this.logger,
             dangerouslySkipPermissions: true,
+            sessionId: String(ctx.chat!.id),
+            resume: true,
             onComplete: async (result: ClaudeResult) => {
                 clearInterval(typingInterval);
 

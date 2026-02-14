@@ -118,10 +118,20 @@ export class CronScheduler {
         const historyPath = join(this.config.vaultPath, 'agent-files', `${jobName}-history.md`);
         const today = new Date().toISOString().split('T')[0];
 
-        const maxEntryLength = 1000;
-        const trimmedResponse = responseText.length > maxEntryLength
-            ? responseText.slice(0, maxEntryLength) + '\n[...truncated]'
-            : responseText;
+        const dedupMarker = '---DEDUP---';
+        const dedupIndex = responseText.indexOf(dedupMarker);
+        let trimmedResponse: string;
+
+        if (dedupIndex !== -1) {
+            // Extract only the dedup block for history storage
+            trimmedResponse = responseText.slice(dedupIndex + dedupMarker.length).trim();
+        } else {
+            // Fall back to first 1000 chars
+            const maxEntryLength = 1000;
+            trimmedResponse = responseText.length > maxEntryLength
+                ? responseText.slice(0, maxEntryLength) + '\n[...truncated]'
+                : responseText;
+        }
 
         const entry = `\n## ${today}\n${trimmedResponse}\n`;
 
@@ -158,6 +168,13 @@ export class CronScheduler {
         });
 
         return kept.join('').trim() + '\n';
+    }
+
+    public async triggerJob(name: string): Promise<boolean> {
+        const job = this.config.db.getCronJob(name);
+        if (!job) return false;
+        await this.executeJob(job);
+        return true;
     }
 
     private async executeJob(job: CronJobRow): Promise<void> {

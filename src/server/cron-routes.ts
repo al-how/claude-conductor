@@ -80,6 +80,14 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
         return { job };
     });
 
+    // Trigger a job on-demand
+    app.post('/api/trigger/:name', async (request, reply) => {
+        const { name } = request.params as { name: string };
+        const triggered = await scheduler.triggerJob(name);
+        if (!triggered) return reply.status(404).send({ error: 'Job not found' });
+        return { success: true, message: `Job "${name}" triggered` };
+    });
+
     // Delete a job
     app.delete('/api/cron/:name', async (request, reply) => {
         const { name } = request.params as { name: string };

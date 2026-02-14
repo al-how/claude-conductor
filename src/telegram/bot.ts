@@ -1,7 +1,8 @@
 import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
-import { extractResponseText } from '../claude/invoke.js';
+import { extractResponseText, isMaxTurnsError } from '../claude/invoke.js';
+import type { ClaudeResult } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -151,88 +152,155 @@ export class TelegramBot {
             }
         }
 
-        if (this.dispatcher) {
-            await ctx.replyWithChatAction('typing');
-            const typingInterval = setInterval(async () => {
-                try {
-                    await ctx.replyWithChatAction('typing');
-                } catch {
-                    // Chat may have been deleted or bot blocked — ignore
+        if (!this.dispatcher) {
+            await ctx.reply('Dispatcher not connected.');
+            return;
+        }
+
+        // Build file attachment block
+        let fileBlock = '';
+        if (filePaths && filePaths.length > 0) {
+            const entries = filePaths
+                .map(fp => `File: ${fp}\nUse the Read tool to view this file.`)
+                .join('\n\n');
+            fileBlock = `<attached_files>\n${entries}\n</attached_files>\n\n`;
+        }
+
+        // Build prompt with conversation history for context
+        let prompt = `${replyContext}${fileBlock}${text}`;
+        if (this.db) {
+            try {
+                const history = this.db.getRecentContext(ctx.chat!.id, 20);
+                const prior = history.slice(0, -1);
+                if (prior.length > 0) {
+                    const historyBlock = prior
+                        .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
+                        .join('\n\n');
+                    prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}${replyContext}Human: ${text}`;
                 }
-            }, 5000);
-
-            // Build file attachment block
-            let fileBlock = '';
-            if (filePaths && filePaths.length > 0) {
-                const entries = filePaths
-                    .map(fp => `File: ${fp}\nUse the Read tool to view this file.`)
-                    .join('\n\n');
-                fileBlock = `<attached_files>\n${entries}\n</attached_files>\n\n`;
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to load conversation history');
             }
+        }
 
-            // Build prompt with conversation history for context
-            let prompt = `${replyContext}${fileBlock}${text}`;
-            if (this.db) {
-                try {
-                    const history = this.db.getRecentContext(ctx.chat!.id, 20);
-                    const prior = history.slice(0, -1);
-                    if (prior.length > 0) {
-                        const historyBlock = prior
-                            .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
-                            .join('\n\n');
-                        prompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\n${fileBlock}${replyContext}Human: ${text}`;
-                    }
-                } catch (e) {
-                    this.logger?.error({ err: e }, 'Failed to load conversation history');
-                }
+        this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id);
+    }
+
+    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number, continuationDepth: number = 0) {
+        const taskId = continuationDepth === 0
+            ? `tg-${messageId}`
+            : `tg-${messageId}-c${continuationDepth}`;
+
+        // Start typing indicator
+        void ctx.replyWithChatAction('typing');
+        const typingInterval = setInterval(async () => {
+            try {
+                await ctx.replyWithChatAction('typing');
+            } catch {
+                // Chat may have been deleted or bot blocked — ignore
             }
+        }, 5000);
 
-            this.dispatcher.enqueue({
-                id: `tg-${ctx.message!.message_id}`,
-                source: 'telegram',
-                prompt,
-                workingDir: this.workingDir,
-                logger: this.logger,
-                dangerouslySkipPermissions: true,
-                onComplete: async (result) => {
-                    clearInterval(typingInterval);
-                    let responseText = extractResponseText(result);
+        this.dispatcher!.enqueue({
+            id: taskId,
+            source: 'telegram',
+            prompt,
+            workingDir: this.workingDir,
+            logger: this.logger,
+            dangerouslySkipPermissions: true,
+            onComplete: async (result: ClaudeResult) => {
+                clearInterval(typingInterval);
 
-                    if (!responseText || responseText.trim().length === 0) {
-                        responseText = '(empty response)';
+                // Auto-continue on max turns error
+                if (isMaxTurnsError(result) && continuationDepth < 2) {
+                    // Send any partial response text from the result
+                    const partialText = this.extractPartialText(result);
+                    if (partialText) {
+                        await this.sendTelegramResponse(ctx, partialText);
+                        if (this.db) {
+                            try { this.db.saveMessage(ctx.chat!.id, 'assistant', partialText); }
+                            catch (e) { this.logger?.error({ err: e }, 'Failed to save partial message to DB'); }
+                        }
                     }
 
+                    // Notify user and save notification
+                    const notice = 'Claude reached the turn limit. Continuing automatically...';
+                    await ctx.reply(notice);
+                    if (this.db) {
+                        try { this.db.saveMessage(ctx.chat!.id, 'assistant', notice); }
+                        catch (e) { this.logger?.error({ err: e }, 'Failed to save continuation notice to DB'); }
+                    }
+
+                    this.logger?.info({ messageId, continuationDepth: continuationDepth + 1 }, 'Auto-continuing after max turns');
+
+                    // Build continuation prompt with history context
+                    let continuationPrompt = 'Continue where you left off.';
                     if (this.db) {
                         try {
-                            this.db.saveMessage(ctx.chat!.id, 'assistant', responseText);
+                            const history = this.db.getRecentContext(ctx.chat!.id, 20);
+                            if (history.length > 0) {
+                                const historyBlock = history
+                                    .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
+                                    .join('\n\n');
+                                continuationPrompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\nHuman: Continue where you left off.`;
+                            }
                         } catch (e) {
-                            this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
+                            this.logger?.error({ err: e }, 'Failed to load history for continuation');
                         }
                     }
 
-                    const htmlText = markdownToTelegramHtml(responseText);
-                    const htmlChunks = chunkMessage(htmlText);
-                    const plainChunks = chunkMessage(responseText);
-                    for (let i = 0; i < htmlChunks.length; i++) {
-                        try {
-                            await ctx.reply(htmlChunks[i], { parse_mode: 'HTML' });
-                        } catch (e) {
-                            this.logger?.warn({ err: e }, 'HTML reply failed, falling back to plain text');
-                            try {
-                                await ctx.reply(plainChunks[i] || htmlChunks[i]);
-                            } catch (e2) {
-                                this.logger?.error({ err: e2 }, 'Failed to send Telegram reply');
-                            }
-                        }
-                    }
-                },
-                onError: async (err) => {
-                    clearInterval(typingInterval);
-                    await ctx.reply(`Error: ${err.message}`);
+                    this.enqueueClaudeTask(ctx, continuationPrompt, messageId, continuationDepth + 1);
+                    return;
                 }
-            });
-        } else {
-            await ctx.reply('Dispatcher not connected.');
+
+                // Normal response handling
+                let responseText = extractResponseText(result);
+                if (!responseText || responseText.trim().length === 0) {
+                    responseText = '(empty response)';
+                }
+
+                if (this.db) {
+                    try {
+                        this.db.saveMessage(ctx.chat!.id, 'assistant', responseText);
+                    } catch (e) {
+                        this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
+                    }
+                }
+
+                await this.sendTelegramResponse(ctx, responseText);
+            },
+            onError: async (err) => {
+                clearInterval(typingInterval);
+                await ctx.reply(`Error: ${err.message}`);
+            }
+        });
+    }
+
+    private extractPartialText(result: ClaudeResult): string | null {
+        try {
+            const parsed = JSON.parse(result.stdout);
+            const text = parsed.result ?? parsed.text;
+            return text && text.trim().length > 0 ? text : null;
+        } catch {
+            return null;
+        }
+    }
+
+    private async sendTelegramResponse(ctx: Context, responseText: string) {
+        const htmlText = markdownToTelegramHtml(responseText);
+        const htmlChunks = chunkMessage(htmlText);
+        const plainChunks = chunkMessage(responseText);
+        for (let i = 0; i < htmlChunks.length; i++) {
+            try {
+                await ctx.reply(htmlChunks[i], { parse_mode: 'HTML' });
+            } catch (e) {
+                this.logger?.warn({ err: e }, 'HTML reply failed, falling back to plain text');
+                try {
+                    await ctx.reply(plainChunks[i] || htmlChunks[i]);
+                } catch (e2) {
+                    this.logger?.error({ err: e2 }, 'Failed to send Telegram reply');
+                }
+            }
         }
     }
 

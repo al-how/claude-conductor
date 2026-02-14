@@ -18,7 +18,16 @@
       "Bash(git branch:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(curl:*)",
+      "Bash(git --version:*)",
+      "Bash(GIT_CURL_VERBOSE=1 git ls-remote:*)",
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:mcpindex.net)",
+      "WebFetch(domain:www.pulsemcp.com)",
+      "WebFetch(domain:pypi.org)"
     ]
   }
 }

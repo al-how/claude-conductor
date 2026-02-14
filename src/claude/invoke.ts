@@ -110,6 +110,15 @@ export function parseClaudeOutput(result: ClaudeResult): unknown | null {
     catch { return null; }
 }
 
+export function isMaxTurnsError(result: ClaudeResult): boolean {
+    try {
+        const parsed = JSON.parse(result.stdout);
+        return parsed.subtype === 'error_max_turns';
+    } catch {
+        return false;
+    }
+}
+
 export function extractResponseText(result: ClaudeResult): string {
     if (result.timedOut) return 'Claude Code timed out.';
     if (result.exitCode !== 0) {

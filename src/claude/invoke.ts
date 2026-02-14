@@ -25,6 +25,7 @@ export interface ClaudeResult {
     stderr: string;
     timedOut: boolean;
     numTurns?: number;
+    sessionId?: string;
 }
 
 export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
@@ -114,6 +115,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         let stdout = '';
         let resultJson: Record<string, unknown> | null = null;
         let numTurns: number | undefined;
+        let sessionId: string | undefined;
 
         const child = spawn('claude', args, {
             cwd: workingDir,
@@ -154,6 +156,11 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                     }
                 }
 
+                // Capture session_id from any event (first one wins)
+                if (!sessionId && parsed.session_id) {
+                    sessionId = parsed.session_id as string;
+                }
+
                 // Capture the final result event
                 if (eventType === 'result') {
                     resultJson = parsed;
@@ -177,7 +184,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         child.on('error', (err) => {
             if (timeoutHandle) clearTimeout(timeoutHandle);
             logger?.error({ err }, 'Claude Code spawn error');
-            resolve({ exitCode: -1, stdout, stderr: stderr || err.message, timedOut, numTurns });
+            resolve({ exitCode: -1, stdout, stderr: stderr || err.message, timedOut, numTurns, sessionId });
         });
 
         child.on('close', (code) => {
@@ -200,7 +207,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                 stdout = JSON.stringify(compat);
             }
 
-            resolve({ exitCode: code ?? -1, stdout, stderr, timedOut, numTurns });
+            resolve({ exitCode: code ?? -1, stdout, stderr, timedOut, numTurns, sessionId });
         });
     });
 }

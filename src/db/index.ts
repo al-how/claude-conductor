@@ -67,6 +67,12 @@ export class DatabaseManager {
         );
         CREATE INDEX IF NOT EXISTS idx_conversation_clears_chat_id ON conversation_clears(chat_id);
 
+        CREATE TABLE IF NOT EXISTS claude_sessions (
+          chat_id INTEGER PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS cron_executions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           job_name TEXT NOT NULL,
@@ -123,6 +129,24 @@ export class DatabaseManager {
         const stmt = this.db.prepare(
             'INSERT INTO conversation_clears (chat_id) VALUES (?)'
         );
+        stmt.run(chatId);
+    }
+
+    public getSessionId(chatId: number): string | undefined {
+        const stmt = this.db.prepare('SELECT session_id FROM claude_sessions WHERE chat_id = ?');
+        const row = stmt.get(chatId) as { session_id: string } | undefined;
+        return row?.session_id;
+    }
+
+    public saveSessionId(chatId: number, sessionId: string): void {
+        const stmt = this.db.prepare(
+            'INSERT OR REPLACE INTO claude_sessions (chat_id, session_id, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
+        );
+        stmt.run(chatId, sessionId);
+    }
+
+    public clearSessionId(chatId: number): void {
+        const stmt = this.db.prepare('DELETE FROM claude_sessions WHERE chat_id = ?');
         stmt.run(chatId);
     }
 

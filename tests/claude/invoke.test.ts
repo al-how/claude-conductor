@@ -16,8 +16,7 @@ describe('buildClaudeArgs', () => {
         expect(args).toContain('hello');
         expect(args).toContain('--output-format');
         expect(args).toContain('stream-json');
-        expect(args).toContain('--max-turns');
-        expect(args).toContain('25');
+        expect(args).not.toContain('--max-turns');
     });
 
     it('should use json output format when explicitly specified', () => {

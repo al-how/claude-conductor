@@ -30,13 +30,16 @@ RUN mkdir -p /vault /config /data /home/claude/.claude && \
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+ARG GIT_SHA=unknown
+
 ENV PATH="/home/claude/.local/bin:$PATH" \
     NODE_ENV=production \
     PORT=3000 \
     HOST=0.0.0.0 \
     CONFIG_PATH=/config/config.yaml \
     LOG_LEVEL=info \
-    TELEGRAM_FILES_DIR=/data/telegram-files
+    TELEGRAM_FILES_DIR=/data/telegram-files \
+    GIT_SHA=$GIT_SHA
 
 EXPOSE 3000
 

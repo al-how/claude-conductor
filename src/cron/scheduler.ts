@@ -193,8 +193,8 @@ export class CronScheduler {
             logger: this.logger,
             noSessionPersistence: true,
             allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
-            maxTurns: 25,
-            outputFormat: 'json',
+            maxTurns: job.max_turns || undefined,
+            outputFormat: 'stream-json',
             onComplete: async (result) => {
                 const responseText = extractResponseText(result);
                 const finishedAt = new Date().toISOString();

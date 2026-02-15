@@ -146,6 +146,9 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
 
                 const eventType = parsed.type as string | undefined;
 
+                // Debug: log all event types for format diagnosis
+                logger?.debug({ eventType, keys: Object.keys(parsed) }, 'Stream event received');
+
                 // Log tool_use and text content blocks
                 if (eventType === 'content_block_start' || eventType === 'assistant') {
                     const content = parsed.content_block ?? parsed;

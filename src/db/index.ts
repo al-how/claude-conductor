@@ -56,6 +56,7 @@ export class DatabaseManager {
           output TEXT DEFAULT 'telegram',
           enabled INTEGER DEFAULT 1,
           timezone TEXT DEFAULT 'America/Chicago',
+          max_turns INTEGER DEFAULT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -87,10 +88,23 @@ export class DatabaseManager {
       `;
 
             this.db.exec(schema);
+
+            // Migrations for existing databases
+            this.migrate();
+
             this.logger?.debug('Database initialized and migrations run');
         } catch (error) {
             this.logger?.error({ err: error }, 'Failed to initialize database');
             throw error;
+        }
+    }
+
+    private migrate(): void {
+        // Add max_turns column to cron_jobs if it doesn't exist
+        const cols = this.db.pragma('table_info(cron_jobs)') as { name: string }[];
+        if (!cols.some(c => c.name === 'max_turns')) {
+            this.db.exec('ALTER TABLE cron_jobs ADD COLUMN max_turns INTEGER DEFAULT NULL');
+            this.logger?.info('Migration: added max_turns column to cron_jobs');
         }
     }
 
@@ -155,11 +169,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago');
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null);
         return this.getCronJob(job.name)!;
     }
 
@@ -185,6 +199,7 @@ export class DatabaseManager {
         if (updates.output !== undefined) { fields.push('output = ?'); values.push(updates.output); }
         if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled); }
         if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
+        if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
 
         if (fields.length === 0) return current;
 
@@ -243,6 +258,7 @@ export interface CronJobRow {
     output: string;
     enabled: number;
     timezone: string;
+    max_turns: number | null;
     created_at: string;
     updated_at: string;
 }

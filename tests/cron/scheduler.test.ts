@@ -98,6 +98,7 @@ describe('CronScheduler', () => {
         const job = {
             id: 1, name: 'dispatch-test', schedule: '* * * * *',
             prompt: 'test prompt', output: 'log', enabled: 1,
+            timezone: 'America/Chicago', max_turns: null as number | null,
             created_at: '', updated_at: ''
         };
 
@@ -114,8 +115,8 @@ describe('CronScheduler', () => {
                 prompt: 'test prompt',
                 noSessionPersistence: true,
                 allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
-                maxTurns: 25,
-                outputFormat: 'json'
+                maxTurns: undefined,
+                outputFormat: 'stream-json'
             })
         );
     });

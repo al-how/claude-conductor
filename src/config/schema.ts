@@ -13,7 +13,8 @@ export const CronJobSchema = z.object({
     schedule: z.string().min(1),
     prompt: z.string().min(1),
     output: z.enum(['telegram', 'log', 'webhook', 'silent']).default('log'),
-    timezone: z.string().default('America/Chicago')
+    timezone: z.string().default('America/Chicago'),
+    max_turns: z.number().int().min(1).max(200).nullable().optional()
 });
 
 const WebhookRouteSchema = z.object({

@@ -1,7 +1,7 @@
 import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
-import { extractResponseText, isMaxTurnsError } from '../claude/invoke.js';
+import { extractResponseText } from '../claude/invoke.js';
 import type { ClaudeResult } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
@@ -187,10 +187,8 @@ export class TelegramBot {
         this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id);
     }
 
-    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number, continuationDepth: number = 0) {
-        const taskId = continuationDepth === 0
-            ? `tg-${messageId}`
-            : `tg-${messageId}-c${continuationDepth}`;
+    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number) {
+        const taskId = `tg-${messageId}`;
 
         // Start typing indicator
         void ctx.replyWithChatAction('typing');
@@ -222,49 +220,7 @@ export class TelegramBot {
                 }
                 clearInterval(typingInterval);
 
-                // Auto-continue on max turns error
-                if (isMaxTurnsError(result) && continuationDepth < 2) {
-                    // Send any partial response text from the result
-                    const partialText = this.extractPartialText(result);
-                    if (partialText) {
-                        await this.sendTelegramResponse(ctx, partialText);
-                        if (this.db) {
-                            try { this.db.saveMessage(ctx.chat!.id, 'assistant', partialText); }
-                            catch (e) { this.logger?.error({ err: e }, 'Failed to save partial message to DB'); }
-                        }
-                    }
-
-                    // Notify user and save notification
-                    const notice = 'Claude reached the turn limit. Continuing automatically...';
-                    await ctx.reply(notice);
-                    if (this.db) {
-                        try { this.db.saveMessage(ctx.chat!.id, 'assistant', notice); }
-                        catch (e) { this.logger?.error({ err: e }, 'Failed to save continuation notice to DB'); }
-                    }
-
-                    this.logger?.info({ event: 'auto_continue', messageId, continuationDepth: continuationDepth + 1, maxDepth: 2 }, 'Auto-continuing after max turns');
-
-                    // Build continuation prompt with history context
-                    let continuationPrompt = 'Continue where you left off.';
-                    if (this.db) {
-                        try {
-                            const history = this.db.getRecentContext(ctx.chat!.id, 20);
-                            if (history.length > 0) {
-                                const historyBlock = history
-                                    .map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${escapePromptContent(m.content)}`)
-                                    .join('\n\n');
-                                continuationPrompt = `<conversation_history>\n${historyBlock}\n</conversation_history>\n\nHuman: Continue where you left off.`;
-                            }
-                        } catch (e) {
-                            this.logger?.error({ err: e }, 'Failed to load history for continuation');
-                        }
-                    }
-
-                    this.enqueueClaudeTask(ctx, continuationPrompt, messageId, continuationDepth + 1);
-                    return;
-                }
-
-                // Normal response handling
+                // Response handling
                 let responseText = extractResponseText(result);
                 if (!responseText || responseText.trim().length === 0) {
                     responseText = '(empty response)';
@@ -285,16 +241,6 @@ export class TelegramBot {
                 await ctx.reply(`Error: ${err.message}`);
             }
         });
-    }
-
-    private extractPartialText(result: ClaudeResult): string | null {
-        try {
-            const parsed = JSON.parse(result.stdout);
-            const text = parsed.result ?? parsed.text;
-            return text && text.trim().length > 0 ? text : null;
-        } catch {
-            return null;
-        }
     }
 
     private async sendTelegramResponse(ctx: Context, responseText: string) {

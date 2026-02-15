@@ -30,7 +30,8 @@
       "WebFetch(domain:pypi.org)",
       "Skill(claude-md-management:revise-claude-md)",
       "Bash(gh issue view:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebFetch(domain:docs.unraid.net)"
     ]
   }
 }

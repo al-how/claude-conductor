@@ -39,7 +39,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
         allowedTools,
         dangerouslySkipPermissions = false,
         noSessionPersistence = false,
-        maxTurns = 25,
+        maxTurns,
         outputFormat = 'stream-json',
         appendSystemPrompt,
     } = options;
@@ -57,7 +57,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
     }
     if (appendSystemPrompt) args.push('--append-system-prompt', appendSystemPrompt);
 
-    args.push('--max-turns', String(maxTurns));
+    if (maxTurns) args.push('--max-turns', String(maxTurns));
     args.push('--output-format', outputFormat);
 
     if (outputFormat === 'stream-json') {

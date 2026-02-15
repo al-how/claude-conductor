@@ -43,7 +43,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 ```bash
 # Telegram (interactive, user-initiated)
-claude -p --continue --dangerously-skip-permissions --output-format stream-json --max-turns 25
+claude -p --continue --dangerously-skip-permissions --output-format stream-json
 
 # Cron (scheduled, read-only default)
 claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format json --max-turns 25
@@ -94,7 +94,7 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - `result` — final event with `result`, `text`, `subtype`, `num_turns`, `session_id`
 - `subtype: 'error_max_turns'` — turn limit hit (may include partial `result`/`text`)
 - `type: 'result'` with no `result`/`text` — finished without response
-- Auto-continuation on max turns is handled in `src/telegram/bot.ts` (max 2 retries)
+- Telegram runs without `--max-turns` (unlimited); cron/webhook still set explicit limits
 
 ## Design Constraints
 

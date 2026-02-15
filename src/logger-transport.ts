@@ -60,7 +60,7 @@ export function formatLogObject(log: Record<string, unknown>): string {
     // Banner events
     if (event === 'startup') {
         const fullTimestamp = new Date(log.time as number || Date.now()).toISOString().replace('T', ' ').slice(0, 19);
-        return formatBanner('🚀', 'Claude Conductor starting', fullTimestamp);
+        return formatBanner('🚀', msg || 'Claude Conductor starting', fullTimestamp);
     }
     if (event === 'shutdown') {
         return formatBanner('🛑', 'Claude Conductor shutting down', formatTime(log.time as number || Date.now()));

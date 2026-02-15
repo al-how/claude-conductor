@@ -31,7 +31,15 @@
       "Skill(claude-md-management:revise-claude-md)",
       "Bash(gh issue view:*)",
       "Bash(find:*)",
-      "WebFetch(domain:docs.unraid.net)"
+      "WebFetch(domain:docs.unraid.net)",
+      "Bash(git log:*)",
+      "Bash(npm ls:*)",
+      "Bash(timeout 3 node:*)",
+      "Bash(LOG_FORMAT=json timeout 3 node:*)",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(gh run watch:*)"
     ]
   }
 }

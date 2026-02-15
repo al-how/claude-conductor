@@ -10,6 +10,7 @@ import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
 import { CronScheduler } from './cron/scheduler.js';
+import { registerMcpServer } from './mcp/register.js';
 
 export async function main() {
     const logger = createLogger({
@@ -23,6 +24,13 @@ export async function main() {
     // Load config
     const config = loadConfig();
     logger.info({ configPath: process.env.CONFIG_PATH }, 'Config loaded');
+
+    // Register MCP research server (only in container context)
+    try {
+        registerMcpServer(logger);
+    } catch (err) {
+        logger.warn({ err }, 'Failed to register MCP server — continuing without it');
+    }
 
     // Initialize DB
     const dbPath = process.env.DB_PATH || '/data/harness.db';
@@ -114,8 +122,29 @@ Schedule uses standard cron expressions. Output options: telegram, log, silent.
 `;
         writeFileSync(join(rulesDir, 'harness-api.md'), rulesContent);
         logger.info({ path: join(rulesDir, 'harness-api.md') }, 'Written API rules for Claude Code');
+
+        // MCP Research tools guidance
+        const mcpRulesContent = `# MCP Research Tools
+
+You have access to MCP research tools that process content externally, keeping your context window clean.
+
+## Prefer these over built-in tools:
+
+- **research_web** — Use instead of WebSearch + WebFetch for web research. Searches and synthesizes results in one call.
+- **summarize_url** — Use instead of WebFetch when you only need to understand a page's content. Fetches and summarizes externally.
+- **summarize_text** — Use for large text you've already read but need to distill into key points.
+- **analyze_image** — Use for image understanding (screenshots, diagrams, photos).
+- **analyze_complex** — Use for deep analysis requiring multi-step reasoning on provided content.
+
+## When to use built-in tools instead:
+- When you need the raw, unprocessed content (e.g., extracting exact code snippets, copying specific text)
+- When the MCP tools return an error suggesting you fall back to built-in tools
+- When you need to interact with a page (forms, dynamic content)
+`;
+        writeFileSync(join(rulesDir, 'mcp-research.md'), mcpRulesContent);
+        logger.info({ path: join(rulesDir, 'mcp-research.md') }, 'Written MCP research rules for Claude Code');
     } catch (err) {
-        logger.error({ err }, 'Failed to write API rules file');
+        logger.error({ err }, 'Failed to write rules files');
     }
 
     // Start server

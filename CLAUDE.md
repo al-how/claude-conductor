@@ -38,6 +38,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 - `npx tsc --noEmit` — type-check only
 - `npx tsc` — full build (emits to `dist/`)
+- `npx vitest run` — run all tests
 
 ## Claude Code Invocation Patterns
 
@@ -46,7 +47,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 claude -p --continue --dangerously-skip-permissions --output-format stream-json
 
 # Cron (scheduled, read-only default)
-claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format json --max-turns 25
+claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format stream-json
 
 # Webhook (external, scoped per route)
 claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
@@ -94,7 +95,26 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - `result` — final event with `result`, `text`, `subtype`, `num_turns`, `session_id`
 - `subtype: 'error_max_turns'` — turn limit hit (may include partial `result`/`text`)
 - `type: 'result'` with no `result`/`text` — finished without response
-- Telegram runs without `--max-turns` (unlimited); cron/webhook still set explicit limits
+- Telegram and cron run without `--max-turns` by default; cron jobs can set `max_turns` per-job via the API
+
+## Deployment
+
+- CI builds Docker image on push to master via `.github/workflows/docker-publish.yml`
+- Image: `ghcr.io/al-how/claude-conductor:latest` with `GIT_SHA` baked in at build time
+- Startup banner shows version and git SHA for deployment verification
+- **Container must be recreated (not just restarted) to pick up new images**: `docker stop && docker rm && docker compose up -d`
+- Unraid compose project: `/boot/config/plugins/compose.manager/projects/claude-conductor/`
+
+## Database
+
+- SQLite schema is inline in `src/db/index.ts` (not a separate `.sql` file)
+- `CREATE TABLE IF NOT EXISTS` does NOT add new columns to existing tables — new columns need an explicit `ALTER TABLE` migration in `DatabaseManager.migrate()`
+
+## Logging
+
+- Pretty-print transport (`src/logger-transport.ts`) intercepts structured logs and formats them for the console
+- Banner events (`startup`, `shutdown`) and session events use the `msg` field — if the transport hardcodes display text, new fields in the log object won't appear
+- When adding new log fields, check both the `logger.info()` call AND the transport formatting
 
 ## Design Constraints
 

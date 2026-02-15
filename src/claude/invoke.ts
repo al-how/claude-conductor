@@ -149,30 +149,36 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                 // Debug: log all event types for format diagnosis
                 logger?.debug({ eventType, keys: Object.keys(parsed) }, 'Stream event received');
 
-                // Log tool_use and text content blocks
-                if (eventType === 'content_block_start' || eventType === 'assistant') {
-                    const content = parsed.content_block ?? parsed;
-                    handleContentEvent(content as Record<string, unknown>, logger);
-                }
-
-                // Handle assistant message with content array
-                if (eventType === 'assistant' && Array.isArray(parsed.content)) {
-                    for (const block of parsed.content) {
-                        handleContentEvent(block as Record<string, unknown>, logger);
+                // Handle assistant messages — content array is at parsed.message.content
+                if (eventType === 'assistant') {
+                    const message = parsed.message as Record<string, unknown> | undefined;
+                    const content = message?.content;
+                    if (Array.isArray(content)) {
+                        for (const block of content) {
+                            handleContentEvent(block as Record<string, unknown>, logger);
+                        }
                     }
                 }
 
-                // Log tool results at debug level
-                if (eventType === 'tool_result') {
-                    const content = typeof parsed.content === 'string'
-                        ? parsed.content
-                        : JSON.stringify(parsed.content);
-                    const lines = content.split('\n').length;
-                    const preview = content.slice(0, 200);
-                    logger?.debug(
-                        { event: 'tool_result', toolUseId: parsed.tool_use_id, lines, preview },
-                        `Tool result: ${lines} lines`
-                    );
+                // Handle tool results — they arrive as type:'user' events
+                if (eventType === 'user') {
+                    const message = parsed.message as Record<string, unknown> | undefined;
+                    const content = message?.content;
+                    if (Array.isArray(content)) {
+                        for (const block of content as Record<string, unknown>[]) {
+                            if (block.type === 'tool_result') {
+                                const resultContent = typeof block.content === 'string'
+                                    ? block.content
+                                    : JSON.stringify(block.content);
+                                const lines = resultContent.split('\n').length;
+                                const preview = resultContent.slice(0, 200);
+                                logger?.debug(
+                                    { event: 'tool_result', toolUseId: block.tool_use_id, lines, preview },
+                                    `Tool result: ${lines} lines`
+                                );
+                            }
+                        }
+                    }
                 }
 
                 // Capture session_id from any event (first one wins)

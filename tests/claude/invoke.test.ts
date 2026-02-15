@@ -246,7 +246,7 @@ describe('stream-json event parsing', () => {
     it('should log tool_result events at debug level', async () => {
         const mockLogger = createMockLogger();
         const lines = [
-            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_123', content: 'file contents here' }),
+            JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu_123', content: 'file contents here' }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);
@@ -263,7 +263,7 @@ describe('stream-json event parsing', () => {
         const mockLogger = createMockLogger();
         const content = 'line1\nline2\nline3\nline4\nline5';
         const lines = [
-            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_456', content }),
+            JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu_456', content }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);
@@ -279,7 +279,7 @@ describe('stream-json event parsing', () => {
     it('should log text content blocks at info level', async () => {
         const mockLogger = createMockLogger();
         const lines = [
-            JSON.stringify({ type: 'assistant', content: [{ type: 'text', text: 'Here is my response to your question.' }] }),
+            JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Here is my response to your question.' }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);
@@ -296,7 +296,7 @@ describe('stream-json event parsing', () => {
         const mockLogger = createMockLogger();
         const longText = 'A'.repeat(200);
         const lines = [
-            JSON.stringify({ type: 'assistant', content: [{ type: 'text', text: longText }] }),
+            JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: longText }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);
@@ -313,7 +313,7 @@ describe('stream-json event parsing', () => {
         const mockLogger = createMockLogger();
         const longContent = 'B'.repeat(500);
         const lines = [
-            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_789', content: longContent }),
+            JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu_789', content: longContent }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);
@@ -329,7 +329,7 @@ describe('stream-json event parsing', () => {
     it('should handle tool_result with non-string content', async () => {
         const mockLogger = createMockLogger();
         const lines = [
-            JSON.stringify({ type: 'tool_result', tool_use_id: 'tu_obj', content: { key: 'value' } }),
+            JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu_obj', content: { key: 'value' } }] } }),
             JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
         ];
         mockedSpawn.mockReturnValue(createMockChild(lines) as never);

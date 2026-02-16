@@ -21,6 +21,9 @@ COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
+# Install Gemini CLI globally (as root, before user switch)
+RUN npm install -g @google/gemini-cli
+
 # Volume mount points — create and chown as root
 RUN mkdir -p /vault /config /data /home/claude/.claude && \
     chown -R claude:claude /vault /config /data /home/claude /app
@@ -29,7 +32,6 @@ RUN mkdir -p /vault /config /data /home/claude/.claude && \
 # This ensures the binary lands in /home/claude/.local/bin
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
-RUN npm install -g @google/gemini-cli
 
 ARG GIT_SHA=unknown
 

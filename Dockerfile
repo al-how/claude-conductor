@@ -29,6 +29,7 @@ RUN mkdir -p /vault /config /data /home/claude/.claude && \
 # This ensures the binary lands in /home/claude/.local/bin
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN npm install -g @google/gemini-cli
 
 ARG GIT_SHA=unknown
 

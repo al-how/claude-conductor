@@ -64,7 +64,8 @@ export async function main() {
             workingDir: config.vault_path,
             logger,
             db,
-            dispatcher
+            dispatcher,
+            globalModel: config.model
         });
         // bot.start() begins long-polling and only resolves on stop() — don't await it
         bot.start().catch(err => logger.error({ err }, 'Telegram Bot polling error'));
@@ -79,7 +80,8 @@ export async function main() {
         db: db!, // DB is initialized above, checking logic might need improvement but following flow
         sendTelegram: bot
             ? (text) => bot!.sendMessage(config.telegram!.allowed_users[0], text)
-            : undefined
+            : undefined,
+        globalModel: config.model
     });
     scheduler.start();
 

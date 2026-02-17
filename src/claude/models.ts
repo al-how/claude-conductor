@@ -8,3 +8,7 @@ export function resolveModel(model: string | undefined): string | undefined {
     if (!model) return undefined;
     return MODEL_ALIASES[model.toLowerCase()] ?? model;
 }
+
+export function isKnownAlias(model: string): boolean {
+    return model.toLowerCase() in MODEL_ALIASES;
+}

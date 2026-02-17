@@ -2,7 +2,7 @@ import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
-import { resolveModel } from '../claude/models.js';
+import { resolveModel, isKnownAlias } from '../claude/models.js';
 import type { ClaudeResult } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
@@ -89,11 +89,19 @@ export class TelegramBot {
                 return;
             }
 
-            const modelArg = args.toLowerCase();
+            const parts = args.split(/\s+/);
+            const modelArg = parts[0].toLowerCase();
 
             if (modelArg === 'default' || modelArg === 'reset') {
                 this.stickyModel = undefined;
                 await ctx.reply('Model reset to default.');
+                return;
+            }
+
+            // Per-message override: /model <known-alias> <prompt>
+            if (parts.length > 1 && isKnownAlias(modelArg)) {
+                const prompt = parts.slice(1).join(' ');
+                await this.handleUserMessage(ctx, prompt, undefined, modelArg);
                 return;
             }
 

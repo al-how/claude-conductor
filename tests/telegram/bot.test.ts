@@ -233,6 +233,62 @@ describe('TelegramBot', () => {
         );
     });
 
+    it('/model haiku <prompt> should send one-time override without changing sticky', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any
+        });
+
+        const modelHandler = getCommandHandler('model')!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: '/model haiku what is today\'s summary?', message_id: 2 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await modelHandler(mockCtx);
+
+        // Should enqueue with haiku model
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+        );
+
+        // Sticky model should NOT be set — verify by querying
+        const queryCtx = { message: { text: '/model' }, reply: vi.fn() };
+        await modelHandler(queryCtx);
+        expect(queryCtx.reply).toHaveBeenCalledWith('Current model: default (CLI default)');
+    });
+
+    it('/model with unknown alias and prompt should treat entire text as sticky', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            message: { text: '/model custommodel' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        // Single word that's not a known alias — set as sticky
+        expect(mockCtx.reply).toHaveBeenCalledWith('Model set to: custommodel');
+    });
+
     it('/help should include /model in command list', () => {
         new TelegramBot({
             token: 'fake-token',

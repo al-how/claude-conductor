@@ -105,7 +105,9 @@ You can create, list, and manage scheduled tasks via the harness API at http://l
 ## Create a scheduled task
 curl -s -X POST http://localhost:3000/api/cron \\
   -H "Content-Type: application/json" \\
-  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram"}'
+  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram", "model": "sonnet"}'
+
+Model options: opus, sonnet, haiku (shorthand), or full model IDs. Optional — defaults to global config model.
 
 ## List all scheduled tasks
 curl -s http://localhost:3000/api/cron

@@ -2,6 +2,7 @@ import { Bot, Context } from 'grammy';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
+import { resolveModel } from '../claude/models.js';
 import type { ClaudeResult } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
@@ -14,6 +15,7 @@ export interface TelegramBotConfig {
     dispatcher?: Dispatcher;
     db?: DatabaseManager;
     logger?: Logger;
+    globalModel?: string;
 }
 
 const TELEGRAM_FILES_DIR = resolve(process.env.TELEGRAM_FILES_DIR || '/data/telegram-files');
@@ -25,6 +27,8 @@ export class TelegramBot {
     private dispatcher?: Dispatcher;
     private db?: DatabaseManager;
     private workingDir?: string;
+    private stickyModel: string | undefined;
+    private globalModel: string | undefined;
 
     constructor(config: TelegramBotConfig) {
         this.allowedUsers = new Set(config.allowedUsers);
@@ -32,6 +36,7 @@ export class TelegramBot {
         this.dispatcher = config.dispatcher;
         this.db = config.db;
         this.workingDir = config.workingDir;
+        this.globalModel = config.globalModel;
 
         if (!config.token) {
             this.logger?.error('Telegram bot token is missing in config');
@@ -72,7 +77,29 @@ export class TelegramBot {
 
     private setupHandlers() {
         this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Conductor!'));
-        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear'));
+        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model'));
+
+        this.bot.command('model', async (ctx) => {
+            const text = ctx.message?.text || '';
+            const args = text.replace(/^\/model\s*/, '').trim();
+
+            if (!args) {
+                const current = this.stickyModel || this.globalModel || 'default (CLI default)';
+                await ctx.reply(`Current model: ${current}`);
+                return;
+            }
+
+            const modelArg = args.toLowerCase();
+
+            if (modelArg === 'default' || modelArg === 'reset') {
+                this.stickyModel = undefined;
+                await ctx.reply('Model reset to default.');
+                return;
+            }
+
+            this.stickyModel = modelArg;
+            await ctx.reply(`Model set to: ${modelArg}`);
+        });
 
         this.bot.command('clear', async (ctx) => {
             if (this.db) {
@@ -135,7 +162,7 @@ export class TelegramBot {
         });
     }
 
-    private async handleUserMessage(ctx: Context, text: string, filePaths?: string[]) {
+    private async handleUserMessage(ctx: Context, text: string, filePaths?: string[], modelOverride?: string) {
         // Extract reply context if replying to a message
         let replyContext = '';
         if (ctx.message?.reply_to_message) {
@@ -184,10 +211,10 @@ export class TelegramBot {
             }
         }
 
-        this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id);
+        this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id, modelOverride);
     }
 
-    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number) {
+    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number, modelOverride?: string) {
         const taskId = `tg-${messageId}`;
 
         // Start typing indicator
@@ -204,6 +231,8 @@ export class TelegramBot {
         const chatId = ctx.chat!.id;
         const hasSession = !!this.db?.getSessionId(chatId);
 
+        const model = resolveModel(modelOverride || this.stickyModel || this.globalModel || undefined);
+
         this.dispatcher!.enqueue({
             id: taskId,
             source: 'telegram',
@@ -212,6 +241,7 @@ export class TelegramBot {
             logger: this.logger,
             dangerouslySkipPermissions: true,
             ...(hasSession ? { continue: true } : {}),
+            model,
             onComplete: async (result: ClaudeResult) => {
                 // Persist the session ID so we know to use --continue next time
                 if (result.sessionId && this.db) {

@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TelegramBot } from '../../src/telegram/bot.js';
 import { Dispatcher } from '../../src/dispatcher/index.js';
 
+// Helper to extract a registered command handler by name
+function getCommandHandler(commandName: string): Function | undefined {
+    const call = mockCommand.mock.calls.find((c: any[]) => c[0] === commandName);
+    return call ? call[1] : undefined;
+}
+
+// Helper to extract registered message handler
+function getMessageHandler(): Function | undefined {
+    const call = mockOn.mock.calls.find((c: any[]) => c[0] === 'message:text');
+    return call ? call[1] : undefined;
+}
+
 // Mock everything from grammy
 const mockUse = vi.fn();
 const mockCommand = vi.fn();
@@ -71,5 +83,166 @@ describe('TelegramBot', () => {
 
         // Just verify we passed it
         expect(mockOn).toHaveBeenCalledWith('message:text', expect.any(Function));
+    });
+
+    it('should register /model command handler', () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        expect(mockCommand).toHaveBeenCalledWith('model', expect.any(Function));
+    });
+
+    it('/model with no args should reply with current model', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            globalModel: 'sonnet'
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            message: { text: '/model' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('sonnet'));
+    });
+
+    it('/model sonnet should set sticky model', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            message: { text: '/model sonnet' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('sonnet'));
+    });
+
+    it('/model default should clear sticky model', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        const handler = getCommandHandler('model')!;
+
+        // First set a sticky model
+        await handler({ message: { text: '/model haiku' }, reply: vi.fn() });
+
+        // Then reset
+        const mockCtx = { message: { text: '/model default' }, reply: vi.fn() };
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('reset'));
+    });
+
+    it('/model reset should clear sticky model', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        const handler = getCommandHandler('model')!;
+
+        // Set then reset
+        await handler({ message: { text: '/model opus' }, reply: vi.fn() });
+        const mockCtx = { message: { text: '/model reset' }, reply: vi.fn() };
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('reset'));
+    });
+
+    it('should pass resolved model to dispatcher when sticky model is set', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any
+        });
+
+        // Set sticky model
+        const modelHandler = getCommandHandler('model')!;
+        await modelHandler({ message: { text: '/model haiku' }, reply: vi.fn() });
+
+        // Send a regular message
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+        );
+    });
+
+    it('should pass global model to dispatcher when no sticky model', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            globalModel: 'opus'
+        });
+
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ model: 'claude-opus-4-5-20250514' })
+        );
+    });
+
+    it('/help should include /model in command list', () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        const handler = getCommandHandler('help')!;
+        const mockCtx = { reply: vi.fn() };
+        handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('/model'));
     });
 });

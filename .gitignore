@@ -7,3 +7,4 @@ coverage/
 *.db
 *.sqlite
 config.local.yaml
+.worktrees/

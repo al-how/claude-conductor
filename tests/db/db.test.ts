@@ -134,6 +134,31 @@ describe('DatabaseManager', () => {
         expect(context[4].content).toBe('msg 9');
     });
 
+    it('should create a cron job with model field', () => {
+        const job = dbManager.createCronJob({
+            name: 'model-test',
+            schedule: '0 9 * * *',
+            prompt: 'test',
+            model: 'haiku'
+        });
+        expect(job.model).toBe('haiku');
+    });
+
+    it('should create a cron job with null model by default', () => {
+        const job = dbManager.createCronJob({
+            name: 'no-model-test',
+            schedule: '0 9 * * *',
+            prompt: 'test'
+        });
+        expect(job.model).toBeNull();
+    });
+
+    it('should update a cron job model field', () => {
+        dbManager.createCronJob({ name: 'update-model-test', schedule: '0 9 * * *', prompt: 'test' });
+        const updated = dbManager.updateCronJob('update-model-test', { model: 'sonnet' });
+        expect(updated?.model).toBe('sonnet');
+    });
+
     it('should separate conversations by chat_id', () => {
         dbManager.saveMessage(1, 'user', 'User 1');
         dbManager.saveMessage(2, 'user', 'User 2');

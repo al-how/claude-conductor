@@ -62,6 +62,8 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 - For session continuity, use `--continue` (without `--session-id`) — it continues the most recent persistent session
 - `--no-session-persistence` (used by cron) prevents those sessions from interfering with `--continue`
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
+- `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`
+- Model resolution chain: per-task override > per-source config > global `config.yaml` model > CLI default
 
 ## Container Volume Mounts
 

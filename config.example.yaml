@@ -12,6 +12,10 @@ cron:
     prompt: "Run a quick health check. Verify vault is accessible."
     output: log
 
+# Model selection (optional)
+# Shorthand: opus, sonnet, haiku — or use full model IDs
+# model: sonnet
+
 webhooks: []
 
 queue:

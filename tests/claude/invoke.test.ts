@@ -67,6 +67,18 @@ describe('buildClaudeArgs', () => {
         const idx = args.indexOf('--max-turns');
         expect(args[idx + 1]).toBe('10');
     });
+
+    it('should include --model when provided', () => {
+        const args = buildClaudeArgs({ prompt: 'hi', model: 'claude-sonnet-4-5-20250514' });
+        expect(args).toContain('--model');
+        const idx = args.indexOf('--model');
+        expect(args[idx + 1]).toBe('claude-sonnet-4-5-20250514');
+    });
+
+    it('should not include --model when not provided', () => {
+        const args = buildClaudeArgs({ prompt: 'hi' });
+        expect(args).not.toContain('--model');
+    });
 });
 
 describe('parseClaudeOutput', () => {

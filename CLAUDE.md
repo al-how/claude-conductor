@@ -21,7 +21,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 **Key components:**
 - **Dispatcher** — task queue with concurrency control (max 1 concurrent session)
 - **Telegram Bot** — 1:1 messaging interface (grammy library)
-- **Cron Scheduler** — YAML-configured scheduled tasks (croner or node-cron)
+- **Cron Scheduler** — DB-driven scheduled tasks (croner library). Managed via REST API (`/api/cron`), not config YAML.
 - **Webhook Listener** — HTTP POST endpoints with auth and prompt templates
 - **Playwright Browser** — optional Chromium for automation tasks
 
@@ -62,6 +62,8 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 - For session continuity, use `--continue` (without `--session-id`) — it continues the most recent persistent session
 - `--no-session-persistence` (used by cron) prevents those sessions from interfering with `--continue`
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
+- `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`
+- Model resolution chain: per-task override > per-source config > global `config.yaml` model > CLI default
 
 ## Container Volume Mounts
 
@@ -84,7 +86,7 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 1. **Foundation** — Dockerfile, config loading, Claude Code invocation wrapper, health check
 2. **Telegram Bot** — message handling, user allowlist, conversation history
 3. **Cron Scheduler** — config parsing, scheduled execution, output routing
-4. **Webhooks** — HTTP listener, auth middleware, prompt templates
+4. **Webhooks** — HTTP listener, auth middleware, prompt templates *(not yet implemented — schema only in `src/config/schema.ts`)*
 5. **Browser & Polish** — Playwright, noVNC, status dashboard
 
 ## Claude Output Schema
@@ -123,3 +125,4 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - Telegram messages capped at 4096 chars (needs chunking for long output)
 - Claude Code auto memory is keyed to working directory — keep `/vault` consistent across all invocations
 - Harness instructions go in `/vault/.claude/rules/` (modular, path-scoped) rather than a monolithic CLAUDE.md
+- Design docs and implementation plans go in `docs/plans/YYYY-MM-DD-<topic>-{design,plan}.md`

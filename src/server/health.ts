@@ -23,7 +23,7 @@ export function registerHealthRoute(app: FastifyInstance) {
 
         const body: HealthStatus = {
             status,
-            version: process.env.npm_package_version ?? '0.1.0',
+            version: process.env.VERSION ?? process.env.npm_package_version ?? '0.0.0',
             uptime: process.uptime(),
             timestamp: new Date().toISOString(),
             checks,

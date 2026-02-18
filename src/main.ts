@@ -17,7 +17,7 @@ export async function main() {
         level: process.env.LOG_LEVEL || 'info',
     });
 
-    const version = process.env.npm_package_version || '0.1.0';
+    const version = process.env.VERSION || process.env.npm_package_version || '0.0.0';
     const gitSha = process.env.GIT_SHA || 'dev';
     logger.info({ event: 'startup', version, gitSha }, `Claude Conductor v${version} (${gitSha}) starting`);
 

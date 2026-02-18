@@ -102,10 +102,16 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 ## Deployment
 
 - CI builds Docker image on push to master via `.github/workflows/docker-publish.yml`
-- Image: `ghcr.io/al-how/claude-conductor:latest` with `GIT_SHA` baked in at build time
+- Image: `ghcr.io/al-how/claude-conductor:latest` with `GIT_SHA` and `VERSION` baked in at build time via Docker build args
+- `npm_package_version` is NOT set when running `node dist/main.js` directly — the version must be passed as a `VERSION` build arg from CI reading `package.json`
 - Startup banner shows version and git SHA for deployment verification
 - **Container must be recreated (not just restarted) to pick up new images**: `docker stop && docker rm && docker compose up -d`
 - Unraid compose project: `/boot/config/plugins/compose.manager/projects/claude-conductor/`
+
+## Git Worktrees
+
+- Worktrees at `.worktrees/<name>/` do not include `.github/` — create it manually if committing CI workflow changes from a feature branch
+- Use `git -C <worktree-path>` for git commands when bash path resolution is unreliable on Windows
 
 ## Database
 

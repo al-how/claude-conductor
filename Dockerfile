@@ -34,6 +34,7 @@ USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 ARG GIT_SHA=unknown
+ARG VERSION=0.0.0
 
 ENV PATH="/home/claude/.local/bin:$PATH" \
     NODE_ENV=production \
@@ -42,7 +43,8 @@ ENV PATH="/home/claude/.local/bin:$PATH" \
     CONFIG_PATH=/config/config.yaml \
     LOG_LEVEL=info \
     TELEGRAM_FILES_DIR=/data/telegram-files \
-    GIT_SHA=$GIT_SHA
+    GIT_SHA=$GIT_SHA \
+    npm_package_version=$VERSION
 
 EXPOSE 3000
 

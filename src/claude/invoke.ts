@@ -15,6 +15,7 @@ export interface ClaudeInvokeOptions {
     noSessionPersistence?: boolean;
     maxTurns?: number;
     outputFormat?: 'text' | 'json' | 'stream-json';
+    model?: string;
     appendSystemPrompt?: string;
     timeout?: number;
     logger?: Logger;
@@ -41,6 +42,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
         noSessionPersistence = false,
         maxTurns,
         outputFormat = 'stream-json',
+        model,
         appendSystemPrompt,
     } = options;
 
@@ -57,6 +59,7 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
     }
     if (appendSystemPrompt) args.push('--append-system-prompt', appendSystemPrompt);
 
+    if (model) args.push('--model', model);
     if (maxTurns) args.push('--max-turns', String(maxTurns));
     args.push('--output-format', outputFormat);
 

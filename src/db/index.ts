@@ -106,6 +106,10 @@ export class DatabaseManager {
             this.db.exec('ALTER TABLE cron_jobs ADD COLUMN max_turns INTEGER DEFAULT NULL');
             this.logger?.info('Migration: added max_turns column to cron_jobs');
         }
+        if (!cols.some(c => c.name === 'model')) {
+            this.db.exec('ALTER TABLE cron_jobs ADD COLUMN model TEXT DEFAULT NULL');
+            this.logger?.info('Migration: added model column to cron_jobs');
+        }
     }
 
     public saveMessage(chatId: number, role: 'user' | 'assistant', content: string): void {
@@ -169,11 +173,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null);
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null);
         return this.getCronJob(job.name)!;
     }
 
@@ -200,6 +204,7 @@ export class DatabaseManager {
         if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled); }
         if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
         if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
+        if (updates.model !== undefined) { fields.push('model = ?'); values.push(updates.model); }
 
         if (fields.length === 0) return current;
 
@@ -259,6 +264,7 @@ export interface CronJobRow {
     enabled: number;
     timezone: string;
     max_turns: number | null;
+    model: string | null;
     created_at: string;
     updated_at: string;
 }

@@ -5,6 +5,7 @@ import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager, CronJobRow } from '../db/index.js';
 import { extractResponseText } from '../claude/invoke.js';
+import { resolveModel } from '../claude/models.js';
 
 export interface CronSchedulerConfig {
     dispatcher: Dispatcher;
@@ -12,6 +13,7 @@ export interface CronSchedulerConfig {
     logger: Logger;
     db: DatabaseManager;
     sendTelegram?: (text: string) => Promise<void>;
+    globalModel?: string;
 }
 
 export interface JobStatus {
@@ -184,6 +186,7 @@ export class CronScheduler {
         // Inject history context into the prompt for dedup
         const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
+        const model = resolveModel(job.model ?? this.config.globalModel ?? undefined);
 
         this.config.dispatcher.enqueue({
             id: `cron-${job.name}-${Date.now()}`,
@@ -194,6 +197,7 @@ export class CronScheduler {
             noSessionPersistence: true,
             allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
             maxTurns: job.max_turns || undefined,
+            model,
             outputFormat: 'stream-json',
             onComplete: async (result) => {
                 const responseText = extractResponseText(result);

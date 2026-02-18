@@ -161,6 +161,31 @@ describe('Cron API Routes', () => {
         }));
     });
 
+    it('POST /api/cron should create a job with model field', async () => {
+        const payload = {
+            name: 'model-job',
+            schedule: '0 9 * * *',
+            prompt: 'test prompt',
+            model: 'haiku'
+        };
+
+        (mockDb.getCronJob as any).mockReturnValue(undefined);
+        (mockDb.createCronJob as any).mockReturnValue({ ...payload, id: 3, enabled: 1, timezone: 'America/Chicago' });
+
+        const response = await app.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload
+        });
+
+        expect(response.statusCode).toBe(201);
+        expect(mockDb.createCronJob).toHaveBeenCalledWith(expect.objectContaining({
+            model: 'haiku'
+        }));
+        const body = response.json();
+        expect(body.job.model).toBe('haiku');
+    });
+
     it('PATCH /api/cron/:name should update timezone', async () => {
         const updatedJob = { id: 1, name: 'tz-patch', schedule: '0 9 * * *', prompt: 'test', output: 'log', enabled: 1, timezone: 'Europe/London' };
         (mockDb.updateCronJob as any).mockReturnValue(updatedJob);

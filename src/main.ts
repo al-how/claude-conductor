@@ -64,7 +64,8 @@ export async function main() {
             workingDir: config.vault_path,
             logger,
             db,
-            dispatcher
+            dispatcher,
+            globalModel: config.model
         });
         // bot.start() begins long-polling and only resolves on stop() — don't await it
         bot.start().catch(err => logger.error({ err }, 'Telegram Bot polling error'));
@@ -79,7 +80,8 @@ export async function main() {
         db: db!, // DB is initialized above, checking logic might need improvement but following flow
         sendTelegram: bot
             ? (text) => bot!.sendMessage(config.telegram!.allowed_users[0], text)
-            : undefined
+            : undefined,
+        globalModel: config.model
     });
     scheduler.start();
 
@@ -105,7 +107,9 @@ You can create, list, and manage scheduled tasks via the harness API at http://l
 ## Create a scheduled task
 curl -s -X POST http://localhost:3000/api/cron \\
   -H "Content-Type: application/json" \\
-  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram"}'
+  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram", "model": "sonnet"}'
+
+Model options: opus, sonnet, haiku (shorthand), or full model IDs. Optional — defaults to global config model.
 
 ## List all scheduled tasks
 curl -s http://localhost:3000/api/cron

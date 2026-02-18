@@ -14,7 +14,8 @@ export const CronJobSchema = z.object({
     prompt: z.string().min(1),
     output: z.enum(['telegram', 'log', 'webhook', 'silent']).default('log'),
     timezone: z.string().default('America/Chicago'),
-    max_turns: z.number().int().min(1).max(200).nullable().optional()
+    max_turns: z.number().int().min(1).max(200).nullable().optional(),
+    model: z.string().optional()
 });
 
 const WebhookRouteSchema = z.object({
@@ -23,7 +24,8 @@ const WebhookRouteSchema = z.object({
     auth: z.enum(['bearer', 'none']).default('bearer'),
     secret: z.string().optional(),
     prompt_template: z.string().min(1),
-    output: z.enum(['telegram', 'log', 'webhook', 'silent']).default('log')
+    output: z.enum(['telegram', 'log', 'webhook', 'silent']).default('log'),
+    model: z.string().optional()
 });
 
 const QueueConfigSchema = z.object({
@@ -44,6 +46,7 @@ const BrowserConfigSchema = z.object({
 
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
+    model: z.string().optional(),
     telegram: TelegramConfigSchema.optional(),
     // cron: z.array(CronJobSchema).default([]), // Removed in favor of DB-driven cron
     webhooks: z.array(WebhookRouteSchema).default([]),

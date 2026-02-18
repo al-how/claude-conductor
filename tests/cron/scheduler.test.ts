@@ -223,6 +223,62 @@ describe('CronScheduler', () => {
         telegramScheduler.stop();
     });
 
+    it('should pass job model to dispatcher when set', async () => {
+        const job = {
+            id: 1, name: 'model-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            timezone: 'America/Chicago', max_turns: null as number | null,
+            model: 'haiku' as string | null,
+            created_at: '', updated_at: ''
+        };
+
+        await (scheduler as any).executeJob(job);
+
+        expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
+            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+        );
+    });
+
+    it('should fall back to global model when job has no model', async () => {
+        const globalScheduler = new CronScheduler({
+            dispatcher: mockDispatcher,
+            vaultPath: '/tmp/vault',
+            logger: mockLogger,
+            db: mockDb,
+            globalModel: 'sonnet'
+        });
+
+        const job = {
+            id: 1, name: 'no-model-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            timezone: 'America/Chicago', max_turns: null as number | null,
+            model: null as string | null,
+            created_at: '', updated_at: ''
+        };
+
+        await (globalScheduler as any).executeJob(job);
+
+        expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
+            expect.objectContaining({ model: 'claude-sonnet-4-5-20250514' })
+        );
+        globalScheduler.stop();
+    });
+
+    it('should not include model when neither job nor global model set', async () => {
+        const job = {
+            id: 1, name: 'default-model-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            timezone: 'America/Chicago', max_turns: null as number | null,
+            model: null as string | null,
+            created_at: '', updated_at: ''
+        };
+
+        await (scheduler as any).executeJob(job);
+
+        const enqueueCall = (mockDispatcher.enqueue as any).mock.calls[0][0];
+        expect(enqueueCall.model).toBeUndefined();
+    });
+
     it('should clean up all cron instances on stop', () => {
         const jobs = [
             { id: 1, name: 'j1', schedule: '0 * * * *', prompt: 'p1', output: 'log', enabled: 1, created_at: '', updated_at: '' },

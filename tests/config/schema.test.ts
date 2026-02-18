@@ -68,6 +68,44 @@ describe('ConfigSchema', () => {
         expect(result.success).toBe(false);
     });
 
+    it('should accept global model field', () => {
+        const result = ConfigSchema.safeParse({ model: 'sonnet' });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.model).toBe('sonnet');
+        }
+    });
+
+    it('should accept config without model field', () => {
+        const result = ConfigSchema.safeParse({});
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.model).toBeUndefined();
+        }
+    });
+
+    it('should accept cron job with model field', () => {
+        const result = CronJobSchema.safeParse({
+            name: 'test', schedule: '0 7 * * *', prompt: 'do stuff', model: 'haiku'
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.model).toBe('haiku');
+        }
+    });
+
+    it('should accept webhook route with model field', () => {
+        const result = ConfigSchema.safeParse({
+            webhooks: [{
+                name: 'gh',
+                path: '/webhook/github-pr',
+                prompt_template: 'Review: {{url}}',
+                model: 'sonnet'
+            }]
+        });
+        expect(result.success).toBe(true);
+    });
+
     it('should apply queue defaults', () => {
         const result = ConfigSchema.safeParse({});
         expect(result.success).toBe(true);

@@ -81,7 +81,9 @@ export async function main() {
         sendTelegram: bot
             ? (text) => bot!.sendMessage(config.telegram!.allowed_users[0], text)
             : undefined,
-        globalModel: config.model
+        globalModel: config.model,
+        apiConfig: config.api ? { anthropicApiKey: config.api.anthropic_api_key, defaultModel: config.api.default_model } : undefined,
+        chatId: config.telegram?.allowed_users[0]
     });
     scheduler.start();
 
@@ -91,7 +93,7 @@ export async function main() {
     // Health check
     registerHealthRoute(app);
     // Cron routes
-    registerCronRoutes(app, db!, scheduler);
+    registerCronRoutes(app, db!, scheduler, !!config.api);
 
     // Write runtime instructions for Claude Code
     try {

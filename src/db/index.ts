@@ -110,6 +110,17 @@ export class DatabaseManager {
             this.db.exec('ALTER TABLE cron_jobs ADD COLUMN model TEXT DEFAULT NULL');
             this.logger?.info('Migration: added model column to cron_jobs');
         }
+        if (!cols.some(c => c.name === 'execution_mode')) {
+            this.db.exec("ALTER TABLE cron_jobs ADD COLUMN execution_mode TEXT DEFAULT 'cli'");
+            this.logger?.info('Migration: added execution_mode column to cron_jobs');
+        }
+
+        // Add cost_usd column to cron_executions if it doesn't exist
+        const execCols = this.db.pragma('table_info(cron_executions)') as { name: string }[];
+        if (!execCols.some(c => c.name === 'cost_usd')) {
+            this.db.exec('ALTER TABLE cron_executions ADD COLUMN cost_usd REAL DEFAULT NULL');
+            this.logger?.info('Migration: added cost_usd column to cron_executions');
+        }
     }
 
     public saveMessage(chatId: number, role: 'user' | 'assistant', content: string): void {
@@ -173,11 +184,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null; execution_mode?: string }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model, execution_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null);
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null, job.execution_mode ?? 'cli');
         return this.getCronJob(job.name)!;
     }
 
@@ -205,6 +216,7 @@ export class DatabaseManager {
         if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
         if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
         if (updates.model !== undefined) { fields.push('model = ?'); values.push(updates.model); }
+        if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
 
         if (fields.length === 0) return current;
 
@@ -223,11 +235,11 @@ export class DatabaseManager {
         return result.changes > 0;
     }
 
-    public logCronExecution(entry: { job_name: string; started_at: string; finished_at?: string; exit_code?: number; timed_out?: number; output_destination?: string; response_preview?: string; error?: string }): void {
+    public logCronExecution(entry: { job_name: string; started_at: string; finished_at?: string; exit_code?: number; timed_out?: number; output_destination?: string; response_preview?: string; error?: string; cost_usd?: number }): void {
         const stmt = this.db.prepare(
-            `INSERT INTO cron_executions 
-       (job_name, started_at, finished_at, exit_code, timed_out, output_destination, response_preview, error)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO cron_executions
+       (job_name, started_at, finished_at, exit_code, timed_out, output_destination, response_preview, error, cost_usd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
         stmt.run(
             entry.job_name,
@@ -237,7 +249,8 @@ export class DatabaseManager {
             entry.timed_out ?? 0,
             entry.output_destination ?? null,
             entry.response_preview ?? null,
-            entry.error ?? null
+            entry.error ?? null,
+            entry.cost_usd ?? null
         );
     }
 
@@ -265,6 +278,7 @@ export interface CronJobRow {
     timezone: string;
     max_turns: number | null;
     model: string | null;
+    execution_mode: 'api' | 'cli';
     created_at: string;
     updated_at: string;
 }
@@ -279,4 +293,5 @@ export interface CronExecution {
     output_destination: string | null;
     response_preview: string | null;
     error: string | null;
+    cost_usd: number | null;
 }

@@ -1,6 +1,6 @@
 {
   "name": "claude-conductor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Docker container wrapping Claude Code CLI with scheduling, messaging, and webhook capabilities",
   "type": "module",
   "main": "dist/main.js",
@@ -14,6 +14,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.45",
     "@fastify/cors": "^10.0.1",
     "@google/genai": "^1.41.0",
     "@modelcontextprotocol/sdk": "^1.26.0",

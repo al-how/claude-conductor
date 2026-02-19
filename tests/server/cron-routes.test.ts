@@ -20,7 +20,7 @@ describe('Cron API Routes', () => {
         removeJob: vi.fn()
     } as unknown as CronScheduler;
 
-    registerCronRoutes(app, mockDb, mockScheduler);
+    registerCronRoutes(app, mockDb, mockScheduler, false);
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -184,6 +184,36 @@ describe('Cron API Routes', () => {
         }));
         const body = response.json();
         expect(body.job.model).toBe('haiku');
+    });
+
+    it('POST /api/cron should reject execution_mode: api when apiEnabled is false', async () => {
+        const payload = {
+            name: 'api-job',
+            schedule: '0 9 * * *',
+            prompt: 'test prompt',
+            execution_mode: 'api'
+        };
+
+        const response = await app.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toHaveProperty('error');
+        expect(response.json().error).toContain('API execution mode');
+    });
+
+    it('PATCH /api/cron/:name should reject execution_mode: api when apiEnabled is false', async () => {
+        const response = await app.inject({
+            method: 'PATCH',
+            url: '/api/cron/some-job',
+            payload: { execution_mode: 'api' }
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error).toContain('API execution mode');
     });
 
     it('PATCH /api/cron/:name should update timezone', async () => {

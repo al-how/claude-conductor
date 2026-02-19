@@ -59,5 +59,12 @@ export function loadConfig(configPath?: string): Config {
         const msgs = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
         throw new Error(`Config validation failed: ${msgs}`);
     }
-    return result.data;
+    const config = result.data;
+
+    // Set ANTHROPIC_API_KEY so the Agent SDK picks it up automatically
+    if (config.api?.anthropic_api_key) {
+        process.env.ANTHROPIC_API_KEY = config.api.anthropic_api_key;
+    }
+
+    return config;
 }

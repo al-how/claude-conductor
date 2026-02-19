@@ -5,7 +5,13 @@ import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager, CronJobRow } from '../db/index.js';
 import { extractResponseText } from '../claude/invoke.js';
+import { invokeApi } from '../claude/invoke-api.js';
 import { resolveModel } from '../claude/models.js';
+
+export interface ApiConfig {
+    anthropicApiKey: string;
+    defaultModel?: string;
+}
 
 export interface CronSchedulerConfig {
     dispatcher: Dispatcher;
@@ -14,6 +20,8 @@ export interface CronSchedulerConfig {
     db: DatabaseManager;
     sendTelegram?: (text: string) => Promise<void>;
     globalModel?: string;
+    apiConfig?: ApiConfig;
+    chatId?: number;
 }
 
 export interface JobStatus {
@@ -180,7 +188,90 @@ export class CronScheduler {
     }
 
     private async executeJob(job: CronJobRow): Promise<void> {
-        this.logger.info({ event: 'cron_triggered', name: job.name }, 'Executing cron job');
+        if (job.execution_mode === 'api') {
+            await this.executeJobApi(job);
+        } else {
+            if (job.execution_mode !== 'cli') {
+                this.logger.warn({ name: job.name, execution_mode: job.execution_mode }, 'Unknown execution_mode, defaulting to CLI');
+            }
+            await this.executeJobCli(job);
+        }
+    }
+
+    private async executeJobApi(job: CronJobRow): Promise<void> {
+        this.logger.info({ event: 'cron_triggered', name: job.name, mode: 'api' }, 'Executing cron job via API');
+        const startTime = new Date().toISOString();
+
+        if (!this.config.apiConfig) {
+            this.logger.error({ name: job.name }, 'Job has execution_mode: api but no API config provided');
+            return;
+        }
+
+        const historyContext = await this.getHistoryContext(job.name);
+        const enrichedPrompt = job.prompt + historyContext;
+        const model = resolveModel(job.model ?? this.config.apiConfig.defaultModel ?? this.config.globalModel ?? undefined);
+
+        try {
+            const result = await invokeApi({
+                prompt: enrichedPrompt,
+                workingDir: this.config.vaultPath,
+                allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
+                maxTurns: job.max_turns || undefined,
+                model,
+                logger: this.logger,
+            });
+
+            const finishedAt = new Date().toISOString();
+
+            // Log execution
+            this.config.db.logCronExecution({
+                job_name: job.name,
+                started_at: startTime,
+                finished_at: finishedAt,
+                exit_code: result.error ? 1 : 0,
+                timed_out: 0,
+                output_destination: job.output,
+                response_preview: result.text.slice(0, 200),
+                error: result.error,
+                cost_usd: result.costUsd
+            });
+
+            // Save to history for dedup on next run
+            if (!result.error && result.text.trim()) {
+                await this.appendToHistoryFile(job.name, result.text);
+            }
+
+            // Context injection: save as assistant message for Telegram context
+            const chatId = this.config.chatId;
+            if (chatId && result.text.trim()) {
+                this.config.db.saveMessage(chatId, 'assistant', `[Background: ${job.name}]\n\n${result.text}`);
+            }
+
+            // Route output
+            this.routeOutput(job, result.text);
+        } catch (err: unknown) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            this.logger.error({ err: error, name: job.name }, 'API cron job failed');
+            this.config.db.logCronExecution({
+                job_name: job.name,
+                started_at: startTime,
+                error: error.message,
+                finished_at: new Date().toISOString(),
+                exit_code: -1,
+                timed_out: 0
+            });
+            if (this.config.sendTelegram) {
+                try {
+                    await this.config.sendTelegram(`[${job.name}] Error: ${error.message}`);
+                } catch (telegramErr) {
+                    this.logger.error({ err: telegramErr }, 'Failed to send error notification to Telegram');
+                }
+            }
+        }
+    }
+
+    private async executeJobCli(job: CronJobRow): Promise<void> {
+        this.logger.info({ event: 'cron_triggered', name: job.name, mode: 'cli' }, 'Executing cron job via CLI');
         const startTime = new Date().toISOString();
 
         // Inject history context into the prompt for dedup
@@ -221,22 +312,7 @@ export class CronScheduler {
                 }
 
                 // Route output
-                if (job.output === 'telegram') {
-                    if (this.config.sendTelegram) {
-                        try {
-                            const message = `[${job.name}]\n\n${responseText}`;
-                            await this.config.sendTelegram(message);
-                        } catch (err) {
-                            this.logger.error({ err }, 'Failed to send cron output to Telegram');
-                        }
-                    } else {
-                        this.logger.warn({ name: job.name }, 'Job execution finished, but no Telegram bot available');
-                        this.logger.info({ name: job.name, output: responseText }, 'Cron Job Output');
-                    }
-                } else if (job.output === 'log') {
-                    this.logger.info({ name: job.name, output: responseText }, 'Cron Job Output');
-                }
-                // 'silent' does nothing
+                this.routeOutput(job, responseText);
             },
             onError: async (err) => {
                 this.logger.error({ err, name: job.name }, 'Cron job failed');
@@ -256,5 +332,22 @@ export class CronScheduler {
                 }
             }
         });
+    }
+
+    private routeOutput(job: CronJobRow, responseText: string): void {
+        if (job.output === 'telegram') {
+            if (this.config.sendTelegram) {
+                const message = `[${job.name}]\n\n${responseText}`;
+                this.config.sendTelegram(message).catch(err => {
+                    this.logger.error({ err }, 'Failed to send cron output to Telegram');
+                });
+            } else {
+                this.logger.warn({ name: job.name }, 'Job execution finished, but no Telegram bot available');
+                this.logger.info({ name: job.name, output: responseText }, 'Cron Job Output');
+            }
+        } else if (job.output === 'log') {
+            this.logger.info({ name: job.name, output: responseText }, 'Cron Job Output');
+        }
+        // 'silent' does nothing
     }
 }

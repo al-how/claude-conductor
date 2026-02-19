@@ -6,12 +6,12 @@ import { CronJobSchema } from '../config/schema.js';
 
 const CronJobCreateSchema = CronJobSchema.extend({
     output: z.enum(['telegram', 'log', 'silent']).default('telegram'),
-    enabled: z.number().min(0).max(1).optional()
+    enabled: z.number().min(0).max(1).optional(),
 });
 
 const CronJobUpdateSchema = CronJobCreateSchema.partial().omit({ name: true });
 
-export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, scheduler: CronScheduler) {
+export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, scheduler: CronScheduler, apiEnabled: boolean = false) {
     // List all jobs
     app.get('/api/cron', async (_request, _reply) => {
         const jobs = db.listCronJobs();
@@ -38,6 +38,10 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
             throw err;
         }
 
+        if (body.execution_mode === 'api' && !apiEnabled) {
+            return reply.status(400).send({ error: 'API execution mode requires api config (anthropic_api_key) in config.yaml' });
+        }
+
         const existing = db.getCronJob(body.name);
         if (existing) {
             return reply.status(409).send({ error: 'Job with this name already exists. Use PATCH to update.' });
@@ -51,7 +55,8 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
             enabled: body.enabled ?? 1,
             timezone: body.timezone,
             max_turns: body.max_turns ?? null,
-            model: body.model ?? null
+            model: body.model ?? null,
+            execution_mode: body.execution_mode
         });
 
         scheduler.addJob(job);
@@ -71,6 +76,10 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
                 return reply.status(400).send({ error: 'Validation failed', details: err.errors });
             }
             throw err;
+        }
+
+        if (body.execution_mode === 'api' && !apiEnabled) {
+            return reply.status(400).send({ error: 'API execution mode requires api config (anthropic_api_key) in config.yaml' });
         }
 
         const job = db.updateCronJob(name, body);

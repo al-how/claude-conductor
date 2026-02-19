@@ -55,6 +55,8 @@ claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
 
 Working directory for all invocations: `/vault` (mounted Obsidian vault).
 
+- API cron jobs inject results into the Telegram conversation context (`conversations` table) as `[Background: {job_name}]` messages. CLI cron jobs do not — they only route output per the `output` setting. This is intentional: API jobs run outside the dispatcher and need explicit context bridging.
+
 ## Claude Code CLI Session Flags
 
 - `--session-id` requires a **valid UUID** (not arbitrary strings like Telegram chat IDs)
@@ -73,6 +75,10 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 | Config | `/config` | Harness config, cron definitions, bot token |
 | Data | `/data` | SQLite DB, execution logs, browser profile |
 | Claude Config | `/home/claude/.claude` | OAuth credentials, auto memory, skills, user rules |
+
+## API Configuration
+
+- `api.anthropic_api_key` from config.yaml is set on `process.env.ANTHROPIC_API_KEY` at startup so the Agent SDK picks it up. This means it is visible to all child processes (CLI sessions authenticate via OAuth separately). Use `${ANTHROPIC_API_KEY}` env var substitution in config.yaml to avoid storing the key in plain text.
 
 ## MCP Servers
 
@@ -117,12 +123,19 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 
 - SQLite schema is inline in `src/db/index.ts` (not a separate `.sql` file)
 - `CREATE TABLE IF NOT EXISTS` does NOT add new columns to existing tables — new columns need an explicit `ALTER TABLE` migration in `DatabaseManager.migrate()`
+- Migration pattern: use `this.db.pragma('table_info(<table>)')` to check for column existence before `ALTER TABLE ADD COLUMN`
 
 ## Logging
 
 - Pretty-print transport (`src/logger-transport.ts`) intercepts structured logs and formats them for the console
 - Banner events (`startup`, `shutdown`) and session events use the `msg` field — if the transport hardcodes display text, new fields in the log object won't appear
 - When adding new log fields, check both the `logger.info()` call AND the transport formatting
+
+## Cron Execution Modes
+
+- **CLI** (default): Jobs go through the Dispatcher queue → spawns `claude -p` child process. Uses OAuth auth.
+- **API**: Jobs call `@anthropic-ai/claude-agent-sdk` `query()` directly, bypassing the Dispatcher. Uses `ANTHROPIC_API_KEY`. Requires `api` config in `config.yaml`.
+- `registerCronRoutes` takes an `apiEnabled` flag — rejects `execution_mode: 'api'` jobs at creation/update time if API config is absent.
 
 ## Design Constraints
 

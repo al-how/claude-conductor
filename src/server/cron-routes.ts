@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseManager } from '../db/index.js';
 import type { CronScheduler } from '../cron/scheduler.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { CronJobSchema } from '../config/schema.js';
 
 const CronJobCreateSchema = CronJobSchema.extend({

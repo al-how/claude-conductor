@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { loadMcpConfig } from './config.js';
 import { createMcpLogger } from './logger.js';
 import { GeminiBackend } from './backends/gemini.js';

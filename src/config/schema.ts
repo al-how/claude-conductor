@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const TelegramConfigSchema = z.object({
     bot_token: z.string().min(1, 'Telegram bot token is required'),

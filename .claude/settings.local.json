@@ -45,7 +45,11 @@
       "Bash(gh pr:*)",
       "Bash(git -C \"C:\\\\Users\\\\alexn\\\\Documents\\\\Projects\\\\claude-conductor\\\\.worktrees\\\\model-selection\" status)",
       "Bash(git -C \"C:\\\\Users\\\\alexn\\\\Documents\\\\Projects\\\\claude-conductor\\\\.worktrees\\\\model-selection\" add Dockerfile .github/workflows/docker-publish.yml)",
-      "Bash(git -C:*)"
+      "Bash(git -C:*)",
+      "Bash(git status:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm info:*)",
+      "Bash(npm view:*)"
     ]
   }
 }

@@ -99,6 +99,16 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
         return { success: true, message: `Job "${name}" triggered` };
     });
 
+    // Job execution history
+    app.get('/api/cron/:name/history', async (request, reply) => {
+        const { name } = request.params as { name: string };
+        const { limit } = request.query as { limit?: string };
+        const job = db.getCronJob(name);
+        if (!job) return reply.status(404).send({ error: 'Job not found' });
+        const executions = db.getRecentCronExecutions(name, limit ? parseInt(limit, 10) : 20);
+        return { executions };
+    });
+
     // Delete a job
     app.delete('/api/cron/:name', async (request, reply) => {
         const { name } = request.params as { name: string };

@@ -1,11 +1,14 @@
 import { fastify } from 'fastify';
-import { dirname, join } from 'node:path';
+import fastifyStatic from '@fastify/static';
+import { dirname, join, resolve } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { loadConfig } from './config/loader.js';
 import { createLogger } from './logger.js';
 import { registerHealthRoute } from './server/health.js';
 import { registerCronRoutes } from './server/cron-routes.js';
+import { registerSettingsRoutes } from './server/settings-routes.js';
+import { registerSkillsRoutes } from './server/skills-routes.js';
 import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
@@ -90,10 +93,20 @@ export async function main() {
     // Init Server (Fastify)
     const app = fastify({ logger: false }); // We use our own logger
 
+    // Static files (dashboard)
+    const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+    if (existsSync(publicDir)) {
+        await app.register(fastifyStatic, { root: publicDir });
+    }
+
     // Health check
     registerHealthRoute(app);
     // Cron routes
     registerCronRoutes(app, db!, scheduler, !!config.api);
+    // Settings routes
+    registerSettingsRoutes(app, config);
+    // Skills routes
+    registerSkillsRoutes(app);
 
     // Write runtime instructions for Claude Code
     try {

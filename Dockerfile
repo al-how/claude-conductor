@@ -18,6 +18,7 @@ RUN userdel -r node && useradd -m -u 1000 -s /bin/bash claude
 # Copy built app and install production deps as root
 WORKDIR /app
 COPY --from=builder /build/dist ./dist
+COPY public ./public
 COPY --from=builder /build/package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 

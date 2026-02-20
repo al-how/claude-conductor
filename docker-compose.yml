@@ -15,5 +15,11 @@ services:
       - ./data:/data
       # Mount .claude directory for credentials and memory
       - ./.claude:/home/claude/.claude
+    environment:
+      # Required for API execution mode (execution_mode: 'api' cron jobs)
+      # Reference this in config.yaml as: anthropic_api_key: "${ANTHROPIC_API_KEY}"
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Required for Telegram bot
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     # Network mode host might be needed for some use cases
     # network_mode: host

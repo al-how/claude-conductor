@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Conductor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <style>
+    :root { --pico-font-size: 15px; }
+    nav .brand { font-weight: 700; font-size: 1.2rem; }
+    nav a[aria-current="true"] { color: var(--pico-primary); text-decoration: underline; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge-cli { background: var(--pico-primary-background); color: var(--pico-primary-inverse); }
+    .badge-api { background: var(--pico-secondary-background); color: var(--pico-secondary-inverse); }
+    .toggle { position: relative; display: inline-block; width: 42px; height: 24px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider { position: absolute; cursor: pointer; inset: 0; background: var(--pico-muted-border-color); border-radius: 24px; transition: 0.2s; }
+    .toggle .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .slider { background: var(--pico-primary); }
+    .toggle input:checked + .slider:before { transform: translateX(18px); }
+    .actions { display: flex; gap: 0.5rem; }
+    .actions button { padding: 4px 10px; font-size: 0.8rem; margin: 0; }
+    table td, table th { padding: 0.5rem 0.75rem; }
+    .history-row td { padding: 0.25rem 0.75rem; font-size: 0.85rem; background: var(--pico-card-background-color); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.on { background: #22c55e; }
+    .status-dot.off { background: #6b7280; }
+    .flash { padding: 0.75rem; border-radius: var(--pico-border-radius); margin-bottom: 1rem; font-size: 0.9rem; }
+    .flash-success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); }
+    .flash-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); }
+    details summary { cursor: pointer; }
+    .readonly-field { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div x-data="app()" x-init="init()">
+    <nav class="container-fluid">
+      <ul>
+        <li class="brand">Claude Conductor</li>
+      </ul>
+      <ul>
+        <li><a href="#cron" :aria-current="tab === 'cron' && 'true'" @click.prevent="tab = 'cron'; updateHash()">Cron Jobs</a></li>
+        <li><a href="#settings" :aria-current="tab === 'settings' && 'true'" @click.prevent="tab = 'settings'; updateHash()">Settings</a></li>
+        <li><a href="#skills" :aria-current="tab === 'skills' && 'true'" @click.prevent="tab = 'skills'; updateHash()">Skills</a></li>
+      </ul>
+    </nav>
+
+    <main class="container">
+      <!-- Flash message -->
+      <div x-show="flash.msg" x-transition
+           :class="'flash flash-' + flash.type"
+           x-text="flash.msg"
+           @click="flash.msg = ''"></div>
+
+      <!-- CRON JOBS TAB -->
+      <section x-show="tab === 'cron'" x-cloak>
+        <hgroup>
+          <h2>Cron Jobs</h2>
+          <p>Manage scheduled tasks</p>
+        </hgroup>
+
+        <!-- Create new job -->
+        <details>
+          <summary>Create new job</summary>
+          <form @submit.prevent="createJob()" class="form-grid" style="margin-top:1rem">
+            <label>
+              Name
+              <input type="text" x-model="newJob.name" placeholder="my-task" required pattern="^[a-zA-Z0-9_-]+$">
+            </label>
+            <label>
+              Schedule (cron)
+              <input type="text" x-model="newJob.schedule" placeholder="0 9 * * *" required>
+            </label>
+            <label class="full-width">
+              Prompt
+              <textarea x-model="newJob.prompt" rows="3" required></textarea>
+            </label>
+            <label>
+              Output
+              <select x-model="newJob.output">
+                <option value="telegram">Telegram</option>
+                <option value="log">Log</option>
+                <option value="silent">Silent</option>
+              </select>
+            </label>
+            <label>
+              Model
+              <input type="text" x-model="newJob.model" placeholder="(default)">
+            </label>
+            <label>
+              Timezone
+              <input type="text" x-model="newJob.timezone" placeholder="America/Chicago">
+            </label>
+            <label>
+              Execution Mode
+              <select x-model="newJob.execution_mode">
+                <option value="cli">CLI</option>
+                <option value="api">API</option>
+              </select>
+            </label>
+            <label>
+              Max Turns
+              <input type="number" x-model.number="newJob.max_turns" placeholder="(unlimited)" min="1" max="200">
+            </label>
+            <div>
+              <button type="submit">Create Job</button>
+            </div>
+          </form>
+        </details>
+
+        <!-- Jobs table -->
+        <table x-show="jobs.length > 0">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Schedule</th>
+              <th>Mode</th>
+              <th>Enabled</th>
+              <th>Model</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="job in jobs" :key="job.name">
+              <tr>
+                <td>
+                  <!-- View mode -->
+                  <template x-if="editingJob !== job.name">
+                    <a href="#" @click.prevent="toggleHistory(job.name)" x-text="job.name"></a>
+                  </template>
+                </td>
+                <td>
+                  <template x-if="editingJob !== job.name">
+                    <span x-text="job.schedule"></span>
+                  </template>
+                  <template x-if="editingJob === job.name">
+                    <input type="text" x-model="editForm.schedule" style="margin:0;padding:4px 8px">
+                  </template>
+                </td>
+                <td>
+                  <span class="badge" :class="job.execution_mode === 'api' ? 'badge-api' : 'badge-cli'"
+                        x-text="job.execution_mode || 'cli'"></span>
+                </td>
+                <td>
+                  <label class="toggle">
+                    <input type="checkbox" :checked="job.enabled === 1"
+                           @change="toggleJob(job.name, $event.target.checked ? 1 : 0)">
+                    <span class="slider"></span>
+                  </label>
+                </td>
+                <td x-text="job.model || '—'"></td>
+                <td class="actions">
+                  <template x-if="editingJob !== job.name">
+                    <div class="actions">
+                      <button class="outline secondary" @click="startEdit(job)">Edit</button>
+                      <button class="outline" @click="triggerJob(job.name)">Trigger</button>
+                      <button class="outline secondary" @click="deleteJob(job.name)">Delete</button>
+                    </div>
+                  </template>
+                  <template x-if="editingJob === job.name">
+                    <div class="actions">
+                      <button @click="saveEdit(job.name)">Save</button>
+                      <button class="outline secondary" @click="editingJob = null">Cancel</button>
+                    </div>
+                  </template>
+                </td>
+              </tr>
+            </template>
+            <!-- Edit form row -->
+            <template x-for="job in jobs" :key="'edit-' + job.name">
+              <template x-if="editingJob === job.name">
+                <tr>
+                  <td colspan="6">
+                    <div class="form-grid" style="margin:0.5rem 0">
+                      <label>
+                        Prompt
+                        <textarea x-model="editForm.prompt" rows="2" style="margin:0"></textarea>
+                      </label>
+                      <label>
+                        Output
+                        <select x-model="editForm.output" style="margin:0">
+                          <option value="telegram">Telegram</option>
+                          <option value="log">Log</option>
+                          <option value="silent">Silent</option>
+                        </select>
+                      </label>
+                      <label>
+                        Model
+                        <input type="text" x-model="editForm.model" placeholder="(default)" style="margin:0">
+                      </label>
+                      <label>
+                        Timezone
+                        <input type="text" x-model="editForm.timezone" style="margin:0">
+                      </label>
+                      <label>
+                        Max Turns
+                        <input type="number" x-model.number="editForm.max_turns" placeholder="(unlimited)" min="1" max="200" style="margin:0">
+                      </label>
+                      <label>
+                        Execution Mode
+                        <select x-model="editForm.execution_mode" style="margin:0">
+                          <option value="cli">CLI</option>
+                          <option value="api">API</option>
+                        </select>
+                      </label>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </template>
+            <!-- History sub-rows -->
+            <template x-for="job in jobs" :key="'hist-' + job.name">
+              <template x-if="historyOpen === job.name && history.length > 0">
+                <tr class="history-row">
+                  <td colspan="6">
+                    <table style="margin:0">
+                      <thead>
+                        <tr>
+                          <th>Started</th>
+                          <th>Finished</th>
+                          <th>Exit</th>
+                          <th>Cost</th>
+                          <th>Error</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="h in history" :key="h.id">
+                          <tr>
+                            <td x-text="fmtDate(h.started_at)"></td>
+                            <td x-text="h.finished_at ? fmtDate(h.finished_at) : '—'"></td>
+                            <td x-text="h.exit_code ?? (h.timed_out ? 'timeout' : '—')"></td>
+                            <td x-text="h.cost_usd != null ? '$' + h.cost_usd.toFixed(4) : '—'"></td>
+                            <td x-text="h.error ? h.error.substring(0, 80) : '—'" style="max-width:200px;overflow:hidden;text-overflow:ellipsis"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </template>
+            </template>
+          </tbody>
+        </table>
+
+        <p x-show="jobs.length === 0 && !loading">No cron jobs configured.</p>
+      </section>
+
+      <!-- SETTINGS TAB -->
+      <section x-show="tab === 'settings'" x-cloak>
+        <hgroup>
+          <h2>Settings</h2>
+          <p>Runtime configuration</p>
+        </hgroup>
+
+        <form @submit.prevent="saveSettings()">
+          <div class="form-grid">
+            <label>
+              Model
+              <select x-model="settings.model" @change="settingsDirty = true">
+                <option value="">Default</option>
+                <option value="opus">Opus</option>
+                <option value="sonnet">Sonnet</option>
+                <option value="haiku">Haiku</option>
+              </select>
+              <small>Custom model ID: <input type="text" x-model="settings.customModel" @input="settingsDirty = true" placeholder="claude-sonnet-4-20250514" style="margin:0;display:inline-block;width:auto"></small>
+            </label>
+            <div></div>
+
+            <label>
+              Max Concurrent Sessions
+              <input type="number" x-model.number="settings.queue.max_concurrent" @input="settingsDirty = true" min="1" max="10">
+            </label>
+            <label>
+              Timeout (seconds)
+              <input type="number" x-model.number="settings.queue.timeout_seconds" @input="settingsDirty = true" min="30" max="3600">
+            </label>
+          </div>
+
+          <hr>
+
+          <div class="form-grid readonly-field">
+            <label>
+              Vault Path
+              <input type="text" :value="settings.vault_path" disabled>
+            </label>
+            <label>
+              Telegram
+              <input type="text" :value="settings.telegram_enabled ? 'Enabled' : 'Disabled'" disabled>
+              <small>Requires container restart to change</small>
+            </label>
+            <label>
+              API
+              <input type="text" :value="settings.api_enabled ? 'Enabled' : 'Disabled'" disabled>
+              <small>Requires container restart to change</small>
+            </label>
+            <label>
+              Browser
+              <input type="text" :value="settings.browser?.enabled ? 'Enabled' : 'Disabled'" disabled>
+            </label>
+          </div>
+
+          <button type="submit" :disabled="!settingsDirty" style="margin-top:1rem">Save Settings</button>
+        </form>
+      </section>
+
+      <!-- SKILLS TAB -->
+      <section x-show="tab === 'skills'" x-cloak>
+        <hgroup>
+          <h2>Skills</h2>
+          <p>Claude Code skill modules</p>
+        </hgroup>
+
+        <template x-if="skills.length > 0">
+          <div>
+            <template x-for="skill in skills" :key="skill.name">
+              <article style="margin-bottom:1rem">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <strong x-text="skill.name"></strong>
+                    <br>
+                    <small x-text="skill.description || 'No description'"></small>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" :checked="skill.enabled" @change="toggleSkill(skill.name, $event.target.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </article>
+            </template>
+          </div>
+        </template>
+
+        <p x-show="skills.length === 0 && !loading">No skills installed.</p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    function app() {
+      return {
+        tab: 'cron',
+        loading: false,
+        flash: { msg: '', type: 'success' },
+
+        // Cron
+        jobs: [],
+        newJob: { name: '', schedule: '', prompt: '', output: 'telegram', model: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null },
+        editingJob: null,
+        editForm: {},
+        historyOpen: null,
+        history: [],
+
+        // Settings
+        settings: { model: '', customModel: '', queue: { max_concurrent: 1, timeout_seconds: 300 }, vault_path: '', telegram_enabled: false, api_enabled: false, browser: {} },
+        settingsDirty: false,
+
+        // Skills
+        skills: [],
+
+        async init() {
+          this.tab = location.hash.replace('#', '') || 'cron';
+          window.addEventListener('hashchange', () => {
+            this.tab = location.hash.replace('#', '') || 'cron';
+          });
+          await Promise.all([this.loadJobs(), this.loadSettings(), this.loadSkills()]);
+        },
+
+        updateHash() { location.hash = this.tab; },
+
+        showFlash(msg, type = 'success') {
+          this.flash = { msg, type };
+          setTimeout(() => this.flash.msg = '', 4000);
+        },
+
+        fmtDate(iso) {
+          if (!iso) return '—';
+          const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+          return d.toLocaleString();
+        },
+
+        // --- Cron ---
+        async loadJobs() {
+          const res = await fetch('/api/cron');
+          const data = await res.json();
+          this.jobs = data.jobs || [];
+        },
+
+        async createJob() {
+          const body = { ...this.newJob };
+          if (!body.model) delete body.model;
+          if (!body.max_turns) delete body.max_turns;
+          const res = await fetch('/api/cron', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (res.ok) {
+            this.showFlash('Job created');
+            this.newJob = { name: '', schedule: '', prompt: '', output: 'telegram', model: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null };
+            await this.loadJobs();
+          } else {
+            const err = await res.json();
+            this.showFlash(err.error || 'Failed to create job', 'error');
+          }
+        },
+
+        async toggleJob(name, enabled) {
+          await fetch(`/api/cron/${name}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+          await this.loadJobs();
+        },
+
+        async triggerJob(name) {
+          const res = await fetch(`/api/trigger/${name}`, { method: 'POST' });
+          if (res.ok) this.showFlash(`Triggered "${name}"`);
+          else this.showFlash('Failed to trigger job', 'error');
+        },
+
+        async deleteJob(name) {
+          if (!confirm(`Delete job "${name}"?`)) return;
+          const res = await fetch(`/api/cron/${name}`, { method: 'DELETE' });
+          if (res.ok) { this.showFlash('Job deleted'); await this.loadJobs(); }
+          else this.showFlash('Failed to delete job', 'error');
+        },
+
+        startEdit(job) {
+          this.editingJob = job.name;
+          this.editForm = {
+            schedule: job.schedule,
+            prompt: job.prompt,
+            output: job.output,
+            model: job.model || '',
+            timezone: job.timezone,
+            max_turns: job.max_turns,
+            execution_mode: job.execution_mode || 'cli',
+          };
+        },
+
+        async saveEdit(name) {
+          const body = { ...this.editForm };
+          if (!body.model) body.model = undefined;
+          if (!body.max_turns) body.max_turns = null;
+          const res = await fetch(`/api/cron/${name}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (res.ok) {
+            this.editingJob = null;
+            this.showFlash('Job updated');
+            await this.loadJobs();
+          } else {
+            const err = await res.json();
+            this.showFlash(err.error || 'Failed to update job', 'error');
+          }
+        },
+
+        async toggleHistory(name) {
+          if (this.historyOpen === name) { this.historyOpen = null; return; }
+          const res = await fetch(`/api/cron/${name}/history?limit=10`);
+          const data = await res.json();
+          this.history = data.executions || [];
+          this.historyOpen = name;
+        },
+
+        // --- Settings ---
+        async loadSettings() {
+          const res = await fetch('/api/settings');
+          const data = await res.json();
+          // Check if model is a preset or custom
+          const presets = ['opus', 'sonnet', 'haiku', '', null];
+          if (presets.includes(data.model)) {
+            this.settings = { ...data, customModel: '' };
+          } else {
+            this.settings = { ...data, customModel: data.model || '', model: '' };
+          }
+          this.settingsDirty = false;
+        },
+
+        async saveSettings() {
+          const model = this.settings.customModel || this.settings.model || null;
+          const res = await fetch('/api/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model,
+              queue: {
+                max_concurrent: this.settings.queue.max_concurrent,
+                timeout_seconds: this.settings.queue.timeout_seconds,
+              }
+            })
+          });
+          if (res.ok) {
+            this.settingsDirty = false;
+            this.showFlash('Settings saved');
+            await this.loadSettings();
+          } else {
+            const err = await res.json();
+            this.showFlash(err.error || 'Failed to save settings', 'error');
+          }
+        },
+
+        // --- Skills ---
+        async loadSkills() {
+          const res = await fetch('/api/skills');
+          const data = await res.json();
+          this.skills = data.skills || [];
+        },
+
+        async toggleSkill(name, enabled) {
+          const res = await fetch(`/api/skills/${name}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+          });
+          if (res.ok) {
+            this.showFlash(`Skill "${name}" ${enabled ? 'enabled' : 'disabled'}`);
+            await this.loadSkills();
+          } else {
+            const err = await res.json();
+            this.showFlash(err.error || 'Failed to toggle skill', 'error');
+            await this.loadSkills();
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

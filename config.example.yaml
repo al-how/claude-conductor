@@ -16,6 +16,11 @@ cron:
 # Shorthand: opus, sonnet, haiku — or use full model IDs
 # model: sonnet
 
+# API mode — required for execution_mode: 'api' cron jobs
+# Use env var substitution to avoid storing the key in plain text
+# api:
+#   anthropic_api_key: "${ANTHROPIC_API_KEY}"
+
 webhooks: []
 
 queue:

@@ -23,6 +23,8 @@ export function registerSettingsRoutes(app: FastifyInstance, config: Config) {
             telegram_enabled: !!config.telegram,
             api_enabled: !!config.api,
             browser: config.browser,
+            ollama_enabled: !!config.ollama,
+            ollama_base_url: config.ollama?.base_url ?? null,
         };
     });
 
@@ -65,6 +67,8 @@ export function registerSettingsRoutes(app: FastifyInstance, config: Config) {
             telegram_enabled: !!config.telegram,
             api_enabled: !!config.api,
             browser: config.browser,
+            ollama_enabled: !!config.ollama,
+            ollama_base_url: config.ollama?.base_url ?? null,
         };
     });
 }

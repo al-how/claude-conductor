@@ -342,6 +342,11 @@
               Browser
               <input type="text" :value="settings.browser?.enabled ? 'Enabled' : 'Disabled'" disabled>
             </label>
+            <label>
+              Ollama
+              <input type="text" :value="settings.ollama_enabled ? settings.ollama_base_url : 'Disabled'" disabled>
+              <small>Configure in config.yaml</small>
+            </label>
           </div>
 
           <button type="submit" :disabled="!settingsDirty" style="margin-top:1rem">Save Settings</button>

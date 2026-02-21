@@ -235,7 +235,7 @@ describe('CronScheduler', () => {
         await (scheduler as any).executeJob(job);
 
         expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
-            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+            expect.objectContaining({ model: 'claude-haiku-4-5-20251001' })
         );
     });
 
@@ -259,7 +259,7 @@ describe('CronScheduler', () => {
         await (globalScheduler as any).executeJob(job);
 
         expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
-            expect.objectContaining({ model: 'claude-sonnet-4-5-20250514' })
+            expect.objectContaining({ model: 'claude-sonnet-4-6' })
         );
         globalScheduler.stop();
     });

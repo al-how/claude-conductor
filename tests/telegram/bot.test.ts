@@ -196,7 +196,7 @@ describe('TelegramBot', () => {
         await textHandler(mockCtx);
 
         expect(enqueueSpy).toHaveBeenCalledWith(
-            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+            expect.objectContaining({ model: 'claude-haiku-4-5-20251001' })
         );
     });
 
@@ -229,7 +229,7 @@ describe('TelegramBot', () => {
         await textHandler(mockCtx);
 
         expect(enqueueSpy).toHaveBeenCalledWith(
-            expect.objectContaining({ model: 'claude-opus-4-5-20250514' })
+            expect.objectContaining({ model: 'claude-opus-4-6' })
         );
     });
 
@@ -262,7 +262,7 @@ describe('TelegramBot', () => {
 
         // Should enqueue with haiku model
         expect(enqueueSpy).toHaveBeenCalledWith(
-            expect.objectContaining({ model: 'claude-haiku-3-5-20241022' })
+            expect.objectContaining({ model: 'claude-haiku-4-5-20251001' })
         );
 
         // Sticky model should NOT be set — verify by querying

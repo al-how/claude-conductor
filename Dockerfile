@@ -39,6 +39,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fluxbox \
     && rm -rf /var/lib/apt/lists/*
 
+# Symlink system Chromium to the path Playwright's 'chrome' distribution expects
+RUN mkdir -p /opt/google/chrome && ln -s /usr/bin/chromium /opt/google/chrome/chrome
+
 # Install Playwright CLI globally
 # Note: playwright-cli uses the system Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 # rather than downloading its own, saving ~400MB in the image
@@ -67,6 +70,7 @@ ENV PATH="/home/claude/.local/bin:$PATH" \
     LOG_LEVEL=info \
     TELEGRAM_FILES_DIR=/data/telegram-files \
     DISPLAY=:99 \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
     GIT_SHA=$GIT_SHA \
     VERSION=$VERSION
 

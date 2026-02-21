@@ -134,7 +134,7 @@
                 </td>
                 <td>
                   <template x-if="editingJob !== job.name">
-                    <span x-text="job.schedule"></span>
+                    <span x-text="humanCron(job.schedule)" :title="job.schedule"></span>
                   </template>
                   <template x-if="editingJob === job.name">
                     <input type="text" x-model="editForm.schedule" style="margin:0;padding:4px 8px">
@@ -359,6 +359,57 @@
 
         // Skills
         skills: [],
+
+        humanCron(expr) {
+          if (!expr) return expr;
+          const parts = expr.trim().split(/\s+/);
+          if (parts.length !== 5) return expr;
+          const [min, hour, dom, mon, dow] = parts;
+          const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          const monNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+          function fmtTime(h, m) {
+            const hi = parseInt(h), mi = parseInt(m);
+            if (isNaN(hi)) return null;
+            const ampm = hi >= 12 ? 'PM' : 'AM';
+            const h12 = hi === 0 ? 12 : hi > 12 ? hi - 12 : hi;
+            return mi === 0 ? `${h12} ${ampm}` : `${h12}:${String(mi).padStart(2,'0')} ${ampm}`;
+          }
+
+          // Handle step patterns in hour (e.g. */5 in hour field)
+          if (hour.startsWith('*/')) {
+            const step = hour.slice(2);
+            return min === '0' ? `Every ${step} hours` : `Every ${step} hours at :${min.padStart(2,'0')}`;
+          }
+          // Handle step in minutes (e.g. */5 * * * *)
+          if (min.startsWith('*/') && hour === '*') {
+            return `Every ${min.slice(2)} min`;
+          }
+
+          const time = fmtTime(hour, min);
+          if (!time) return expr;
+
+          // Specific day of month
+          if (dom !== '*' && mon === '*' && dow === '*') {
+            const suffix = d => { const s = ['th','st','nd','rd']; const v = d % 100; return d + (s[(v-20)%10]||s[v]||s[0]); };
+            return `${suffix(parseInt(dom))} of each month at ${time}`;
+          }
+          // Specific month + day
+          if (dom !== '*' && mon !== '*' && dow === '*') {
+            return `${monNames[parseInt(mon)]} ${parseInt(dom)} at ${time}`;
+          }
+          // Specific day(s) of week
+          if (dom === '*' && mon === '*' && dow !== '*') {
+            const days = dow.split(',').map(d => dayNames[parseInt(d)] || d).join(', ');
+            return `${days} at ${time}`;
+          }
+          // Every day
+          if (dom === '*' && mon === '*' && dow === '*') {
+            return `Daily at ${time}`;
+          }
+
+          return expr;
+        },
 
         async init() {
           this.tab = location.hash.replace('#', '') || 'cron';

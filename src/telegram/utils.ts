@@ -126,6 +126,15 @@ export function markdownToTelegramHtml(text: string): string {
     return processed;
 }
 
+/**
+ * Extract screenshot file paths from Claude's response text.
+ * Looks for paths matching /data/screenshots/*.png or .jpg
+ */
+export function extractScreenshotPaths(text: string): string[] {
+    const regex = /\/data\/screenshots\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp)/gi;
+    return [...new Set(text.match(regex) || [])];
+}
+
 function escapeHtml(text: string): string {
     return text
         .replace(/&/g, '&amp;')

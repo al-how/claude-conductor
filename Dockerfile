@@ -25,9 +25,27 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Install Gemini CLI globally (as root, before user switch)
 RUN npm install -g @google/gemini-cli
 
+# Install Chromium, noVNC, and websockify for browser automation
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    novnc \
+    websockify \
+    xvfb \
+    x11vnc \
+    fluxbox \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright CLI globally
+# Note: playwright-cli uses the system Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+# rather than downloading its own, saving ~400MB in the image
+RUN npm install -g @playwright/cli@latest
+
 # Volume mount points — create and chown as root
-RUN mkdir -p /vault /config /data /home/claude/.claude && \
+RUN mkdir -p /vault /config /data /data/browser-profile /data/screenshots /home/claude/.claude && \
     chown -R claude:claude /vault /config /data /home/claude /app
+
+COPY scripts /app/scripts
+RUN chmod +x /app/scripts/*.sh
 
 # Switch to claude user, then install Claude CLI natively
 # This ensures the binary lands in /home/claude/.local/bin
@@ -44,12 +62,13 @@ ENV PATH="/home/claude/.local/bin:$PATH" \
     CONFIG_PATH=/config/config.yaml \
     LOG_LEVEL=info \
     TELEGRAM_FILES_DIR=/data/telegram-files \
+    DISPLAY=:99 \
     GIT_SHA=$GIT_SHA \
     VERSION=$VERSION
 
-EXPOSE 3000
+EXPOSE 3000 6080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["node", "dist/main.js"]
+CMD ["/app/scripts/entrypoint.sh"]

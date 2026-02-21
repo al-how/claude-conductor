@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TelegramBot } from '../../src/telegram/bot.js';
 import { Dispatcher } from '../../src/dispatcher/index.js';
+import { extractScreenshotPaths } from '../../src/telegram/utils.js';
 
 // Helper to extract a registered command handler by name
 function getCommandHandler(commandName: string): Function | undefined {
@@ -31,7 +32,8 @@ vi.mock('grammy', () => {
             start: mockStart,
             stop: mockStop,
             catch: mockCatch
-        }))
+        })),
+        InputFile: vi.fn()
     };
 });
 
@@ -300,5 +302,19 @@ describe('TelegramBot', () => {
         handler(mockCtx);
 
         expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('/model'));
+    });
+});
+
+describe('screenshot detection', () => {
+    it('should detect screenshot paths in response text', () => {
+        const text = 'Here is what I found. Screenshot saved to /data/screenshots/2026-02-21-123456.png';
+        const paths = extractScreenshotPaths(text);
+        expect(paths).toEqual(['/data/screenshots/2026-02-21-123456.png']);
+    });
+
+    it('should return empty array when no screenshots', () => {
+        const text = 'No screenshots here.';
+        const paths = extractScreenshotPaths(text);
+        expect(paths).toEqual([]);
     });
 });

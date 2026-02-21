@@ -55,6 +55,10 @@ claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
 # Cron with Ollama (local model)
 ANTHROPIC_BASE_URL=http://host:11434 ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY="" \
 claude -p --model qwen3-coder --no-session-persistence --allowedTools "Read,Glob,Grep" --output-format stream-json
+
+# Browser-enabled Telegram session
+claude -p --continue --dangerously-skip-permissions --output-format stream-json
+# (Playwright CLI is available via Bash tool — no extra flags needed)
 ```
 
 Working directory for all invocations: `/vault` (mounted Obsidian vault).
@@ -81,6 +85,8 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 | Config | `/config` | Harness config, cron definitions, bot token |
 | Data | `/data` | SQLite DB, execution logs, browser profile |
 | Claude Config | `/home/claude/.claude` | OAuth credentials, auto memory, skills, user rules |
+| Browser Profile | `/data/browser-profile` | Persistent Chromium cookies and login state |
+| Screenshots | `/data/screenshots` | Browser screenshots (sent to Telegram) |
 
 ## API Configuration
 
@@ -142,6 +148,15 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - **CLI** (default): Jobs go through the Dispatcher queue → spawns `claude -p` child process. Uses OAuth auth.
 - **API**: Jobs call `@anthropic-ai/claude-agent-sdk` `query()` directly, bypassing the Dispatcher. Uses `ANTHROPIC_API_KEY`. Requires `api` config in `config.yaml`.
 - `registerCronRoutes` takes an `apiEnabled` flag — rejects `execution_mode: 'api'` jobs at creation/update time if API config is absent.
+
+## Browser Automation
+
+- `@playwright/cli` installed globally — Claude uses `playwright-cli` commands via Bash tool
+- Persistent browser profile at `/data/browser-profile` preserves login sessions
+- noVNC at port 6080 for manual re-authentication when sessions expire
+- Login wall detection is prompt-driven: Claude reads page snapshots and recognizes login forms
+- Screenshots saved to `/data/screenshots/` and sent inline in Telegram responses
+- Form submission requires user confirmation in Telegram; auto-submits in cron jobs
 
 ## Design Constraints
 

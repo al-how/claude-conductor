@@ -11,7 +11,7 @@ const CronJobCreateSchema = CronJobSchema.extend({
 
 const CronJobUpdateSchema = CronJobCreateSchema.partial().omit({ name: true });
 
-export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, scheduler: CronScheduler, apiEnabled: boolean = false) {
+export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, scheduler: CronScheduler, apiEnabled: boolean = false, ollamaBaseUrl?: string) {
     // List all jobs
     app.get('/api/cron', async (_request, _reply) => {
         const jobs = db.listCronJobs();
@@ -119,5 +119,23 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
         scheduler.removeJob(name);
 
         return { success: true };
+    });
+
+    // Ollama model discovery
+    app.get('/api/ollama/models', async () => {
+        if (!ollamaBaseUrl) {
+            return { models: [], available: false };
+        }
+        try {
+            const res = await fetch(`${ollamaBaseUrl}/api/tags`);
+            if (!res.ok) return { models: [], available: false };
+            const data = await res.json() as { models: Array<{ name: string; size: number; modified_at: string }> };
+            return {
+                models: data.models.map(m => ({ name: m.name, size: m.size, modified_at: m.modified_at })),
+                available: true,
+            };
+        } catch {
+            return { models: [], available: false };
+        }
     });
 }

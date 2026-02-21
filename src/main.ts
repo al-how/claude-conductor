@@ -103,7 +103,7 @@ export async function main() {
     // Health check
     registerHealthRoute(app);
     // Cron routes
-    registerCronRoutes(app, db!, scheduler, !!config.api);
+    registerCronRoutes(app, db!, scheduler, !!config.api, config.ollama?.base_url);
     // Settings routes
     registerSettingsRoutes(app, config);
     // Skills routes

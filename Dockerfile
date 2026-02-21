@@ -42,10 +42,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Symlink system Chromium to the path Playwright's 'chrome' distribution expects
 RUN mkdir -p /opt/google/chrome && ln -s /usr/bin/chromium /opt/google/chrome/chrome
 
-# Install Playwright CLI globally
-# Note: playwright-cli uses the system Chromium via PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-# rather than downloading its own, saving ~400MB in the image
+# Install Playwright CLI globally and download its bundled Chromium to a shared location
+# PLAYWRIGHT_BROWSERS_PATH must be set before install so the browser lands in a path
+# accessible to the claude user at runtime (default /root/.cache is not accessible)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 RUN npm install -g @playwright/cli@latest
+RUN npx playwright install chromium --with-deps && chmod -R 755 /opt/playwright-browsers
 
 # Volume mount points — create and chown as root
 RUN mkdir -p /vault /config /data /data/browser-profile /data/screenshots /home/claude/.claude && \
@@ -70,7 +72,6 @@ ENV PATH="/home/claude/.local/bin:$PATH" \
     LOG_LEVEL=info \
     TELEGRAM_FILES_DIR=/data/telegram-files \
     DISPLAY=:99 \
-    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
     GIT_SHA=$GIT_SHA \
     VERSION=$VERSION
 

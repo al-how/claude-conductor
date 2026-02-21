@@ -1,6 +1,6 @@
 {
   "name": "claude-conductor",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Docker container wrapping Claude Code CLI with scheduling, messaging, and webhook capabilities",
   "type": "module",
   "main": "dist/main.js",

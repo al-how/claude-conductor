@@ -29,5 +29,10 @@ services:
     ports:
       - "3000:3000"
       - "6080:6080"   # noVNC for browser login management
+    # Required for Chromium sandbox to function inside Docker
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
     # Network mode host might be needed for some use cases
     # network_mode: host

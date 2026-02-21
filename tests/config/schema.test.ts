@@ -106,6 +106,40 @@ describe('ConfigSchema', () => {
         expect(result.success).toBe(true);
     });
 
+    it('should accept browser config with user_data_dir and vnc_port', () => {
+        const result = ConfigSchema.safeParse({
+            browser: {
+                enabled: true,
+                user_data_dir: '/data/browser-profile',
+                vnc_port: 6080
+            }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.browser.enabled).toBe(true);
+            expect(result.data.browser.user_data_dir).toBe('/data/browser-profile');
+            expect(result.data.browser.vnc_port).toBe(6080);
+        }
+    });
+
+    it('should apply browser config defaults', () => {
+        const result = ConfigSchema.safeParse({
+            browser: { enabled: true }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.browser.user_data_dir).toBe('/data/browser-profile');
+            expect(result.data.browser.vnc_port).toBe(6080);
+        }
+    });
+
+    it('should reject browser vnc_port outside valid range', () => {
+        const result = ConfigSchema.safeParse({
+            browser: { enabled: true, vnc_port: 99 }
+        });
+        expect(result.success).toBe(false);
+    });
+
     it('should apply queue defaults', () => {
         const result = ConfigSchema.safeParse({});
         expect(result.success).toBe(true);

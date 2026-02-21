@@ -163,6 +163,76 @@ You have access to MCP research tools that process content externally, keeping y
 `;
         writeFileSync(join(rulesDir, 'mcp-research.md'), mcpRulesContent);
         logger.info({ path: join(rulesDir, 'mcp-research.md') }, 'Written MCP research rules for Claude Code');
+
+        // Browser automation rules (only if browser enabled)
+        if (config.browser.enabled) {
+            const browserRulesContent = `# Browser Automation (Playwright CLI)
+
+You have access to a headless Chromium browser via the \`playwright-cli\` command.
+
+## Available Commands
+
+- \`playwright-cli open <url> --persistent --profile=${config.browser.user_data_dir}\` — open browser with persistent login session
+- \`playwright-cli goto <url>\` — navigate to a URL (within an existing session)
+- \`playwright-cli snapshot\` — capture page snapshot (compact YAML with element refs)
+- \`playwright-cli click <ref>\` — click an element by its ref from snapshot
+- \`playwright-cli fill <ref> <text>\` — fill text into an editable element
+- \`playwright-cli type <text>\` — type text (for search boxes, etc.)
+- \`playwright-cli screenshot\` — save screenshot to /data/screenshots/
+- \`playwright-cli tab-list\` — list open tabs
+- \`playwright-cli tab-new [url]\` — open new tab
+- \`playwright-cli tab-close\` — close current tab
+- \`playwright-cli go-back\` / \`playwright-cli go-forward\` — navigation
+- \`playwright-cli close-all\` — IMPORTANT: shut down all browser sessions (releases profile lock)
+
+## Workflow Pattern
+
+1. \`playwright-cli open <url> --persistent --profile=${config.browser.user_data_dir}\` — open the target page with persistent login
+2. \`playwright-cli snapshot\` — get element references
+3. Read the snapshot YAML to find the element you need
+4. \`playwright-cli click <ref>\` or \`playwright-cli fill <ref> <text>\` — interact
+5. Repeat snapshot → interact as needed
+6. \`playwright-cli screenshot\` — capture result if needed
+7. \`playwright-cli close-all\` — ALWAYS close browser sessions when done
+
+## CRITICAL: Always Close Browser Sessions
+
+You MUST run \`playwright-cli close-all\` before finishing any task that used the browser. The browser profile directory is locked while a session is active. Leaving sessions open prevents:
+- Future browser tasks from starting
+- The user from using noVNC for manual re-authentication
+
+If \`playwright-cli open\` fails with a profile lock error, run \`playwright-cli close-all\` first, then retry.
+
+## Login Wall Detection (IMPORTANT)
+
+Before extracting data from any page, check the snapshot for login forms or sign-in prompts (e.g., elements with text like "Sign in", "Log in", "Enter password", login form fields).
+
+If you detect a login wall:
+1. STOP the current browser task immediately
+2. Run \`playwright-cli close-all\` to release the profile lock
+3. End your response with: "The [site name] session has expired. Please re-login via noVNC at http://HOST:${config.browser.vnc_port} and reply 'done' when ready."
+4. Do NOT attempt to log in programmatically
+
+Note: You cannot pause and wait for user input mid-session. Detecting a login wall means you end this response. The user will re-authenticate via noVNC, reply in Telegram, and a new session will pick up where you left off via --continue.
+
+## Form Submission Rules
+
+- **When running as a scheduled cron job:** You may submit forms automatically unless the job prompt says otherwise.
+- **When responding to a Telegram message:** You cannot pause mid-session for confirmation. Instead:
+  1. Fill the form
+  2. Take a screenshot
+  3. Run \`playwright-cli close-all\`
+  4. Describe exactly what you filled in and what will happen on submit
+  5. End your response with: "Reply 'submit' to confirm, or 'cancel' to abort."
+  6. The user's reply will trigger a new session that reopens the page and submits
+
+## Screenshots
+
+Save screenshots to \`/data/screenshots/\`. When you need to show the user what you see, take a screenshot and reference the file path in your response — the harness will send it inline in Telegram.
+`;
+            writeFileSync(join(rulesDir, 'browser-automation.md'), browserRulesContent);
+            logger.info({ path: join(rulesDir, 'browser-automation.md') }, 'Written browser automation rules for Claude Code');
+        }
     } catch (err) {
         logger.error({ err }, 'Failed to write rules files');
     }

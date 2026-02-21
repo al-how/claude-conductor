@@ -29,3 +29,5 @@ queue:
 
 browser:
   enabled: false
+  # user_data_dir: /data/browser-profile  # persistent login sessions
+  # vnc_port: 6080                         # noVNC port for manual login

@@ -1,6 +1,7 @@
-import { Bot, Context } from 'grammy';
+import { Bot, Context, InputFile } from 'grammy';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml } from './utils.js';
+import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml, extractScreenshotPaths } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
 import { resolveModel, isKnownAlias } from '../claude/models.js';
 import type { ClaudeResult } from '../claude/invoke.js';
@@ -294,6 +295,18 @@ export class TelegramBot {
                     await ctx.reply(plainChunks[i] || htmlChunks[i]);
                 } catch (e2) {
                     this.logger?.error({ err: e2 }, 'Failed to send Telegram reply');
+                }
+            }
+        }
+
+        // Send any screenshots referenced in the response
+        const screenshots = extractScreenshotPaths(responseText);
+        for (const screenshotPath of screenshots) {
+            if (existsSync(screenshotPath)) {
+                try {
+                    await ctx.replyWithPhoto(new InputFile(screenshotPath));
+                } catch (e) {
+                    this.logger?.warn({ err: e, path: screenshotPath }, 'Failed to send screenshot');
                 }
             }
         }

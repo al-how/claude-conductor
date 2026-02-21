@@ -3,6 +3,7 @@ import type { DatabaseManager } from '../db/index.js';
 import type { CronScheduler } from '../cron/scheduler.js';
 import { z } from 'zod/v3';
 import { CronJobSchema } from '../config/schema.js';
+import { MODEL_ALIASES } from '../claude/models.js';
 
 const CronJobCreateSchema = CronJobSchema.extend({
     output: z.enum(['telegram', 'log', 'silent']).default('telegram'),
@@ -56,7 +57,8 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
             timezone: body.timezone,
             max_turns: body.max_turns ?? null,
             model: body.model ?? null,
-            execution_mode: body.execution_mode
+            execution_mode: body.execution_mode,
+            allowed_tools: body.allowed_tools ?? null,
         });
 
         scheduler.addJob(job);
@@ -119,6 +121,14 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
         scheduler.removeJob(name);
 
         return { success: true };
+    });
+
+    // Available model list for the dashboard picker
+    app.get('/api/models', async () => {
+        const claude = Object.keys(MODEL_ALIASES)
+            .filter(k => !k.includes('.'))  // only short names: opus, sonnet, haiku
+            .map(k => ({ alias: k, model: MODEL_ALIASES[k] }));
+        return { claude };
     });
 
     // Ollama model discovery

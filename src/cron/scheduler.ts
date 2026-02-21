@@ -213,7 +213,7 @@ export class CronScheduler {
             const result = await invokeApi({
                 prompt: enrichedPrompt,
                 workingDir: this.config.vaultPath,
-                allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
+                allowedTools: job.allowed_tools ? job.allowed_tools.split(',').map(t => t.trim()) : ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
                 maxTurns: job.max_turns || undefined,
                 model,
                 logger: this.logger,
@@ -284,7 +284,7 @@ export class CronScheduler {
             workingDir: this.config.vaultPath,
             logger: this.logger,
             noSessionPersistence: true,
-            allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
+            allowedTools: job.allowed_tools ? job.allowed_tools.split(',').map(t => t.trim()) : ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
             maxTurns: job.max_turns || undefined,
             model: resolved?.model,
             providerEnv: resolved?.provider === 'ollama' ? this.getOllamaEnv() : undefined,

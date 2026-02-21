@@ -16,7 +16,8 @@ export const CronJobSchema = z.object({
     timezone: z.string().default('America/Chicago'),
     max_turns: z.number().int().min(1).max(200).nullable().optional(),
     model: z.string().optional(),
-    execution_mode: z.enum(['api', 'cli']).default('cli')
+    execution_mode: z.enum(['api', 'cli']).default('cli'),
+    allowed_tools: z.string().optional()
 });
 
 const WebhookRouteSchema = z.object({

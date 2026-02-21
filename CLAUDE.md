@@ -151,3 +151,6 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - Claude Code auto memory is keyed to working directory — keep `/vault` consistent across all invocations
 - Harness instructions go in `/vault/.claude/rules/` (modular, path-scoped) rather than a monolithic CLAUDE.md
 - Design docs and implementation plans go in `docs/plans/YYYY-MM-DD-<topic>-{design,plan}.md`
+
+## Commits
+ALWAYS update the version number when pushing commits

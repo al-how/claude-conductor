@@ -1,0 +1,1 @@
+cd /boot/config/plugins/compose.manager/projects/claude-conductor/ && docker stop claude-conductor && docker rm claude-conductor && docker compose pull && docker compose up -d

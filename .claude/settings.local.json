@@ -49,7 +49,14 @@
       "Bash(git status:*)",
       "Bash(npm ci:*)",
       "Bash(npm info:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(gh issue create:*)",
+      "Bash(npm version:*)",
+      "WebFetch(domain:docs.ollama.com)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git merge:*)",
+      "Bash(git worktree:*)"
     ]
   }
 }

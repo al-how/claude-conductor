@@ -114,6 +114,10 @@ export class DatabaseManager {
             this.db.exec("ALTER TABLE cron_jobs ADD COLUMN execution_mode TEXT DEFAULT 'cli'");
             this.logger?.info('Migration: added execution_mode column to cron_jobs');
         }
+        if (!cols.some(c => c.name === 'allowed_tools')) {
+            this.db.exec('ALTER TABLE cron_jobs ADD COLUMN allowed_tools TEXT DEFAULT NULL');
+            this.logger?.info('Migration: added allowed_tools column to cron_jobs');
+        }
 
         // Add cost_usd column to cron_executions if it doesn't exist
         const execCols = this.db.pragma('table_info(cron_executions)') as { name: string }[];
@@ -184,11 +188,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null; execution_mode?: string }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null; execution_mode?: string; allowed_tools?: string | null }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model, execution_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model, execution_mode, allowed_tools) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null, job.execution_mode ?? 'cli');
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null, job.execution_mode ?? 'cli', job.allowed_tools ?? null);
         return this.getCronJob(job.name)!;
     }
 
@@ -217,6 +221,7 @@ export class DatabaseManager {
         if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
         if (updates.model !== undefined) { fields.push('model = ?'); values.push(updates.model); }
         if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
+        if (updates.allowed_tools !== undefined) { fields.push('allowed_tools = ?'); values.push(updates.allowed_tools); }
 
         if (fields.length === 0) return current;
 
@@ -279,6 +284,7 @@ export interface CronJobRow {
     max_turns: number | null;
     model: string | null;
     execution_mode: 'api' | 'cli';
+    allowed_tools: string | null;
     created_at: string;
     updated_at: string;
 }

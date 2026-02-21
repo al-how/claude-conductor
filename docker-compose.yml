@@ -23,6 +23,9 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       # Set to "true" to enable noVNC for browser login management
       - BROWSER_ENABLED=${BROWSER_ENABLED:-false}
+      # GitHub token for gh CLI — allows Claude to create issues, PRs, etc.
+      # Requires repo scope (or public_repo for public repos only)
+      - GH_TOKEN=${GH_TOKEN:-}
     ports:
       - "3000:3000"
       - "6080:6080"   # noVNC for browser login management

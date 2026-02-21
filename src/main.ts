@@ -125,7 +125,7 @@ curl -s -X POST http://localhost:3000/api/cron \\
   -H "Content-Type: application/json" \\
   -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram", "model": "sonnet"}'
 
-Model options: opus, sonnet, haiku (shorthand), or full model IDs. Optional — defaults to global config model.
+Model options: opus, sonnet, haiku (Claude shorthand), ollama:<model-name> (local Ollama), or full model IDs. Optional — defaults to global config model.
 
 ## List all scheduled tasks
 curl -s http://localhost:3000/api/cron

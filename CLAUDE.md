@@ -51,6 +51,10 @@ claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebF
 
 # Webhook (external, scoped per route)
 claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
+
+# Cron with Ollama (local model)
+ANTHROPIC_BASE_URL=http://host:11434 ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY="" \
+claude -p --model qwen3-coder --no-session-persistence --allowedTools "Read,Glob,Grep" --output-format stream-json
 ```
 
 Working directory for all invocations: `/vault` (mounted Obsidian vault).
@@ -66,6 +70,8 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
 - `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`
 - Model resolution chain: per-task override > per-source config > global `config.yaml` model > CLI default
+- Models prefixed with `ollama:` (e.g., `ollama:qwen3-coder`) route to Ollama via env var injection on the CLI subprocess
+- Ollama config: `ollama.base_url` in config.yaml
 
 ## Container Volume Mounts
 

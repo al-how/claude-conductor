@@ -73,7 +73,16 @@ export class CronScheduler {
                 timezone: job.timezone,
                 catch: true,
                 unref: true // Don't hold the process open
-            }, () => this.executeJob(job));
+            }, async () => {
+                // Read fresh from DB so edits (e.g. execution_mode change) take effect
+                // without needing a reschedule. Mirrors the behaviour of triggerJob().
+                const freshJob = this.config.db.getCronJob(job.name);
+                if (freshJob) {
+                    await this.executeJob(freshJob);
+                } else {
+                    this.logger.warn({ name: job.name }, 'Scheduled job not found in DB, skipping execution');
+                }
+            });
 
             this.jobs.set(job.name, cron);
             this.logger.info({ event: 'cron_scheduled', name: job.name, schedule: job.schedule, timezone: job.timezone }, 'Scheduled job');
@@ -185,6 +194,7 @@ export class CronScheduler {
     }
 
     private async executeJob(job: CronJobRow): Promise<void> {
+        this.logger.info({ name: job.name, execution_mode: job.execution_mode }, 'Dispatching cron job');
         if (job.execution_mode === 'api') {
             await this.executeJobApi(job);
         } else {

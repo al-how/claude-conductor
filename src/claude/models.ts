@@ -9,9 +9,29 @@ export const MODEL_ALIASES: Record<string, string> = {
     'haiku-4.5': 'claude-haiku-4-5-20251001',
 };
 
-export function resolveModel(model: string | undefined): string | undefined {
+export interface ResolvedModel {
+    model: string;
+    provider: 'claude' | 'ollama';
+}
+
+const OLLAMA_PREFIX = 'ollama:';
+
+export function resolveModel(model: string | undefined): ResolvedModel | undefined {
     if (!model) return undefined;
-    return MODEL_ALIASES[model.toLowerCase()] ?? model;
+
+    // Check for ollama: prefix
+    if (model.toLowerCase().startsWith(OLLAMA_PREFIX)) {
+        return {
+            model: model.slice(OLLAMA_PREFIX.length),
+            provider: 'ollama',
+        };
+    }
+
+    // Claude alias or pass-through
+    return {
+        model: MODEL_ALIASES[model.toLowerCase()] ?? model,
+        provider: 'claude',
+    };
 }
 
 export function isKnownAlias(model: string): boolean {

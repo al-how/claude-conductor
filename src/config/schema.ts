@@ -48,7 +48,8 @@ const ApiConfigSchema = z.object({
 const BrowserConfigSchema = z.object({
     enabled: z.boolean().default(false),
     headless: z.boolean().default(true),
-    vnc: z.boolean().default(false)
+    user_data_dir: z.string().default('/data/browser-profile'),
+    vnc_port: z.number().int().min(1024).max(65535).default(6080),
 }).default({});
 
 const OllamaConfigSchema = z.object({

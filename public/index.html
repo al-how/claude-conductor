@@ -104,7 +104,9 @@
                 </template>
                 <option value="__custom__">Custom...</option>
               </select>
-              <input x-show="newJob.model === '__custom__'" type="text" x-model="newJob.customModel" placeholder="model ID" style="margin-top:0.25rem">
+              <input x-show="newJob.model === '__custom__'" type="text" x-model="newJob.customModel" placeholder="ollama:model-name or claude-model-id" style="margin-top:0.25rem">
+              <small x-show="newJob.model === '__custom__'" style="color:#888">Prefix Ollama models with <code>ollama:</code> (e.g. <code>ollama:qwen3-vl:8b</code>)</small>
+              <small x-show="ollamaError" style="color:#c66" x-text="'⚠ Ollama: ' + ollamaError"></small>
             </label>
             <label>
               Timezone
@@ -226,7 +228,8 @@
                           </template>
                           <option value="__custom__">Custom...</option>
                         </select>
-                        <input x-show="editForm.model === '__custom__'" type="text" x-model="editForm.customModel" placeholder="model ID" style="margin-top:0.25rem">
+                        <input x-show="editForm.model === '__custom__'" type="text" x-model="editForm.customModel" placeholder="ollama:model-name or claude-model-id" style="margin-top:0.25rem">
+                        <small x-show="editForm.model === '__custom__'" style="color:#888">Prefix Ollama models with <code>ollama:</code></small>
                       </label>
                       <label>
                         Timezone
@@ -408,6 +411,7 @@
         claudeModels: [],
         ollamaModels: [],
         ollamaAvailable: false,
+        ollamaError: null,
 
         // Skills
         skills: [],
@@ -501,6 +505,7 @@
             const ollamaData = await ollamaRes.json();
             this.ollamaModels = ollamaData.models || [];
             this.ollamaAvailable = ollamaData.available || false;
+            this.ollamaError = ollamaData.error || null;
           } catch (e) {
             console.error('Failed to load models', e);
           }

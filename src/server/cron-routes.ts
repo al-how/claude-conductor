@@ -134,18 +134,22 @@ export function registerCronRoutes(app: FastifyInstance, db: DatabaseManager, sc
     // Ollama model discovery
     app.get('/api/ollama/models', async () => {
         if (!ollamaBaseUrl) {
-            return { models: [], available: false };
+            return { models: [], available: false, error: 'No ollama.base_url configured' };
         }
         try {
             const res = await fetch(`${ollamaBaseUrl}/api/tags`);
-            if (!res.ok) return { models: [], available: false };
+            if (!res.ok) {
+                app.log.warn({ status: res.status, ollamaBaseUrl }, 'Ollama API returned non-OK status');
+                return { models: [], available: false, error: `Ollama returned HTTP ${res.status}` };
+            }
             const data = await res.json() as { models: Array<{ name: string; size: number; modified_at: string }> };
             return {
                 models: data.models.map(m => ({ name: m.name, size: m.size, modified_at: m.modified_at })),
                 available: true,
             };
-        } catch {
-            return { models: [], available: false };
+        } catch (err) {
+            app.log.warn({ err, ollamaBaseUrl }, 'Failed to reach Ollama API');
+            return { models: [], available: false, error: `Cannot reach Ollama at ${ollamaBaseUrl}` };
         }
     });
 }

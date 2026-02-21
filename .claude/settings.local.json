@@ -56,7 +56,9 @@
       "Bash(git checkout:*)",
       "Bash(git pull:*)",
       "Bash(git merge:*)",
-      "Bash(git worktree:*)"
+      "Bash(git worktree:*)",
+      "Bash(python3:*)",
+      "Bash(ANTHROPIC_BASE_URL=http://192.168.1.138:11434 ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY=\"\" claude -p --model qwen3-vl:8b --no-session-persistence --max-turns 1 --output-format json \"say hello in one word\")"
     ]
   }
 }

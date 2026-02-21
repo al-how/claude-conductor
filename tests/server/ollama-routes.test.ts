@@ -14,7 +14,7 @@ describe('GET /api/ollama/models', () => {
         await app.ready();
         const res = await app.inject({ method: 'GET', url: '/api/ollama/models' });
         expect(res.statusCode).toBe(200);
-        expect(res.json()).toEqual({ models: [], available: false });
+        expect(res.json()).toEqual({ models: [], available: false, error: 'No ollama.base_url configured' });
     });
 
     it('should return models from ollama when configured', async () => {
@@ -48,7 +48,7 @@ describe('GET /api/ollama/models', () => {
         await app.ready();
         const res = await app.inject({ method: 'GET', url: '/api/ollama/models' });
         expect(res.statusCode).toBe(200);
-        expect(res.json()).toEqual({ models: [], available: false });
+        expect(res.json()).toEqual({ models: [], available: false, error: 'Cannot reach Ollama at http://192.168.1.100:11434' });
 
         vi.unstubAllGlobals();
     });

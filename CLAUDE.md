@@ -9,7 +9,7 @@ Claude Conductor is a Docker container that wraps Claude Code CLI with schedulin
 The full design spec is at `docs/Claude Conductor.md`.
 
 ## Windows Development
-- This project runs on Windows (likely with MSYS2/Git Bash). Always use platform-safe path handling: normalize paths, use case-insensitive comparisons, and avoid `shell: true` in spawn calls.
+- This project may be worked on from Windows (MSYS2/Git Bash). Always use platform-safe path handling: normalize paths, use case-insensitive comparisons, and avoid `shell: true` in spawn calls.
 - Test path logic for Windows edge cases (backslashes, drive letters, case sensitivity).
 
 ## Architecture
@@ -36,6 +36,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 ## Build & Test
 
+- `npm run dev` — run locally with tsx (no build step)
 - `npx tsc --noEmit` — type-check only
 - `npx tsc` — full build (emits to `dist/`)
 - `npx vitest run` — run all tests
@@ -86,7 +87,7 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 | Data | `/data` | SQLite DB, execution logs, browser profile |
 | Claude Config | `/home/claude/.claude` | OAuth credentials, auto memory, skills, user rules |
 | Browser Profile | `/data/browser-profile` | Persistent Chromium cookies and login state |
-| Screenshots | `/data/screenshots` | Browser screenshots (sent to Telegram) |
+| Screenshots | `/data/screenshots` | Browser screenshots (sent inline to Telegram) |
 
 ## API Configuration
 
@@ -99,13 +100,15 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 - Project-scoped `.mcp.json` goes at project root (`/vault/.mcp.json`), NOT inside `.claude/` — Claude Code does not read `.claude/.mcp.json`.
 - Cron jobs with `--allowedTools` won't have access to MCP tools unless explicitly listed.
 
-## Implementation Phases
+## Browser Automation
 
-1. **Foundation** — Dockerfile, config loading, Claude Code invocation wrapper, health check
-2. **Telegram Bot** — message handling, user allowlist, conversation history
-3. **Cron Scheduler** — config parsing, scheduled execution, output routing
-4. **Webhooks** — HTTP listener, auth middleware, prompt templates *(not yet implemented — schema only in `src/config/schema.ts`)*
-5. **Browser & Polish** — Playwright, noVNC, status dashboard
+- Enabled via `browser.enabled: true` in `config.yaml` — writes `browser-automation.md` rules to `/vault/.claude/rules/` at startup
+- `@playwright/cli` installed globally in the container — Claude uses `playwright-cli` commands via Bash tool
+- Persistent profile at `/data/browser-profile` preserves login sessions across tasks
+- noVNC available at port 6080 (set `BROWSER_ENABLED=true` env var) for manual re-authentication
+- Login wall detection is prompt-driven: Claude reads page snapshots and stops if a login form is detected
+- Screenshots saved to `/data/screenshots/` are automatically sent inline in Telegram replies
+- Form submission in Telegram sessions requires user confirmation; cron jobs may auto-submit
 
 ## Claude Output Schema
 

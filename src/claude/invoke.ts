@@ -85,7 +85,7 @@ function extractToolArg(toolName: string, input: Record<string, unknown>): strin
             return input.pattern as string | undefined;
         case 'Bash': {
             const cmd = input.command as string | undefined;
-            return cmd ? cmd.slice(0, 60) : undefined;
+            return cmd || undefined;
         }
         case 'WebSearch':
             return input.query as string | undefined;
@@ -174,7 +174,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                                     ? block.content
                                     : JSON.stringify(block.content);
                                 const lines = resultContent.split('\n').length;
-                                const preview = resultContent.slice(0, 200);
+                                const preview = resultContent;
                                 logger?.debug(
                                     { event: 'tool_result', toolUseId: block.tool_use_id, lines, preview },
                                     `Tool result: ${lines} lines`
@@ -248,7 +248,7 @@ function handleContentEvent(block: Record<string, unknown>, logger?: Logger): vo
         logger?.info({ event: 'tool_use', tool: toolName, arg }, `Tool: ${toolName}`);
     }
     if (block.type === 'text' && block.text) {
-        const preview = (block.text as string).slice(0, 80);
+        const preview = block.text as string;
         logger?.info(
             { event: 'assistant_text', preview },
             'Assistant response'

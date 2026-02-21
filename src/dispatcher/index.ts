@@ -37,7 +37,7 @@ export class Dispatcher {
                 const { id, source, onComplete, onError, ...invokeOptions } = task;
 
                 const startTime = Date.now();
-                this.logger?.info({ event: 'session_start', taskId: task.id, source: task.source, prompt: task.prompt.slice(0, 80) }, 'Session started');
+                this.logger?.info({ event: 'session_start', taskId: task.id, source: task.source, prompt: task.prompt }, 'Session started');
 
                 try {
                     // Inject logger if not present and available

@@ -136,11 +136,7 @@ export class CronScheduler {
             // Extract only the dedup block for history storage
             trimmedResponse = responseText.slice(dedupIndex + dedupMarker.length).trim();
         } else {
-            // Fall back to first 1000 chars
-            const maxEntryLength = 1000;
-            trimmedResponse = responseText.length > maxEntryLength
-                ? responseText.slice(0, maxEntryLength) + '\n[...truncated]'
-                : responseText;
+            trimmedResponse = responseText;
         }
 
         const entry = `\n## ${today}\n${trimmedResponse}\n`;
@@ -231,7 +227,7 @@ export class CronScheduler {
                 exit_code: result.error ? 1 : 0,
                 timed_out: 0,
                 output_destination: job.output,
-                response_preview: result.text.slice(0, 200),
+                response_preview: result.text,
                 error: result.error,
                 cost_usd: result.costUsd
             });
@@ -302,7 +298,7 @@ export class CronScheduler {
                     exit_code: result.exitCode,
                     timed_out: result.timedOut ? 1 : 0,
                     output_destination: job.output,
-                    response_preview: responseText.slice(0, 200),
+                    response_preview: responseText,
                     error: result.stderr
                 });
 

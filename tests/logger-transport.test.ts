@@ -140,13 +140,11 @@ describe('formatLogObject', () => {
             expect(out).toContain("I've checked the weather forecast.");
         });
 
-        it('should truncate assistant_text preview to 80 chars', () => {
-            const longText = 'A'.repeat(100);
+        it('should show full assistant_text preview without truncation', () => {
+            const longText = 'A'.repeat(200);
             const out = formatLogObject(log({ event: 'assistant_text', preview: longText }));
             expect(out).toContain('💭');
-            // The preview in the log object may be longer, but the formatter truncates to 80
-            expect(out).toContain('A'.repeat(80));
-            expect(out).not.toContain('A'.repeat(81));
+            expect(out).toContain('A'.repeat(200));
         });
 
         it('should handle assistant_text with empty preview', () => {

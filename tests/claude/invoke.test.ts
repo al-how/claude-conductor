@@ -304,7 +304,7 @@ describe('stream-json event parsing', () => {
         );
     });
 
-    it('should truncate assistant text preview to 80 chars', async () => {
+    it('should show full assistant text preview without truncation', async () => {
         const mockLogger = createMockLogger();
         const longText = 'A'.repeat(200);
         const lines = [
@@ -316,12 +316,12 @@ describe('stream-json event parsing', () => {
         await invokeClaude({ prompt: 'test', logger: mockLogger as never });
 
         expect(mockLogger.info).toHaveBeenCalledWith(
-            expect.objectContaining({ event: 'assistant_text', preview: 'A'.repeat(80) }),
+            expect.objectContaining({ event: 'assistant_text', preview: 'A'.repeat(200) }),
             'Assistant response'
         );
     });
 
-    it('should truncate tool_result preview to 200 chars', async () => {
+    it('should show full tool_result preview without truncation', async () => {
         const mockLogger = createMockLogger();
         const longContent = 'B'.repeat(500);
         const lines = [
@@ -333,7 +333,7 @@ describe('stream-json event parsing', () => {
         await invokeClaude({ prompt: 'test', logger: mockLogger as never });
 
         expect(mockLogger.debug).toHaveBeenCalledWith(
-            expect.objectContaining({ event: 'tool_result', preview: 'B'.repeat(200) }),
+            expect.objectContaining({ event: 'tool_result', preview: 'B'.repeat(500) }),
             expect.any(String)
         );
     });

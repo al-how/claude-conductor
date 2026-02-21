@@ -108,8 +108,8 @@ export function formatLogObject(log: Record<string, unknown>): string {
     if (event === 'message_received') {
         const userId = log.userId ?? '';
         const text = log.text as string | undefined;
-        const preview = text ? text.slice(0, 60) : '';
-        return `${time} 📩 Message from user ${userId}: "${preview}"`;
+        return `${time} 📩 Message from user ${userId}: "${text || ''}"`;
+
     }
     if (event === 'cron_triggered') {
         const name = log.name || msg;
@@ -128,11 +128,11 @@ export function formatLogObject(log: Record<string, unknown>): string {
     if (event === 'tool_result') {
         const lines = log.lines ?? '?';
         const preview = log.preview as string | undefined;
-        const truncated = preview ? preview.replace(/\n/g, '↵').slice(0, 200) : '';
-        return `${time}    📄 Tool result (${lines} lines): "${truncated}"`;
+        const formatted = preview ? preview.replace(/\n/g, '↵') : '';
+        return `${time}    📄 Tool result (${lines} lines): "${formatted}"`;
     }
     if (event === 'assistant_text') {
-        const preview = (log.preview as string || '').slice(0, 80);
+        const preview = log.preview as string || '';
         return `${time}    💭 "${preview}"`;
     }
     if (event === 'response_ready') {

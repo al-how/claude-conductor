@@ -123,9 +123,12 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         let numTurns: number | undefined;
         let sessionId: string | undefined;
 
+        // Strip ANTHROPIC_API_KEY so CLI sessions authenticate via OAuth
+        // (API key is only needed by Agent SDK in invoke-api.ts)
+        const { ANTHROPIC_API_KEY, ...cleanEnv } = process.env;
         const child = spawn('claude', args, {
             cwd: workingDir,
-            env: process.env,
+            env: cleanEnv,
             stdio: ['ignore', 'pipe', 'pipe']
         });
 

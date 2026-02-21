@@ -86,7 +86,8 @@ export async function main() {
             : undefined,
         globalModel: config.model,
         apiConfig: config.api ? { anthropicApiKey: config.api.anthropic_api_key, defaultModel: config.api.default_model } : undefined,
-        chatId: config.telegram?.allowed_users[0]
+        chatId: config.telegram?.allowed_users[0],
+        ollamaBaseUrl: config.ollama?.base_url,
     });
     scheduler.start();
 

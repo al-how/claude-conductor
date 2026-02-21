@@ -239,7 +239,7 @@ export class TelegramBot {
         const chatId = ctx.chat!.id;
         const hasSession = !!this.db?.getSessionId(chatId);
 
-        const model = resolveModel(modelOverride || this.stickyModel || this.globalModel || undefined);
+        const model = resolveModel(modelOverride || this.stickyModel || this.globalModel || undefined)?.model;
 
         this.dispatcher!.enqueue({
             id: taskId,

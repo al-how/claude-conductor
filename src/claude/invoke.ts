@@ -19,6 +19,7 @@ export interface ClaudeInvokeOptions {
     appendSystemPrompt?: string;
     timeout?: number;
     logger?: Logger;
+    providerEnv?: Record<string, string>;
 }
 
 export interface ClaudeResult {
@@ -126,9 +127,13 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         // Strip ANTHROPIC_API_KEY so CLI sessions authenticate via OAuth
         // (API key is only needed by Agent SDK in invoke-api.ts)
         const { ANTHROPIC_API_KEY, ...cleanEnv } = process.env;
+        // Merge provider-specific env vars (e.g. Ollama overrides)
+        const childEnv = options.providerEnv
+            ? { ...cleanEnv, ...options.providerEnv }
+            : cleanEnv;
         const child = spawn('claude', args, {
             cwd: workingDir,
-            env: cleanEnv,
+            env: childEnv,
             stdio: ['ignore', 'pipe', 'pipe']
         });
 

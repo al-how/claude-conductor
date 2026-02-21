@@ -22,6 +22,7 @@ export interface CronSchedulerConfig {
     globalModel?: string;
     apiConfig?: ApiConfig;
     chatId?: number;
+    ollamaBaseUrl?: string;
 }
 
 export interface JobStatus {
@@ -205,7 +206,8 @@ export class CronScheduler {
 
         const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
-        const model = resolveModel(job.model ?? this.config.apiConfig.defaultModel ?? this.config.globalModel ?? undefined);
+        const resolved = resolveModel(job.model ?? this.config.apiConfig.defaultModel ?? this.config.globalModel ?? undefined);
+        const model = resolved?.model;
 
         try {
             const result = await invokeApi({
@@ -273,7 +275,7 @@ export class CronScheduler {
         // Inject history context into the prompt for dedup
         const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
-        const model = resolveModel(job.model ?? this.config.globalModel ?? undefined);
+        const resolved = resolveModel(job.model ?? this.config.globalModel ?? undefined);
 
         this.config.dispatcher.enqueue({
             id: `cron-${job.name}-${Date.now()}`,
@@ -284,7 +286,8 @@ export class CronScheduler {
             noSessionPersistence: true,
             allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
             maxTurns: job.max_turns || undefined,
-            model,
+            model: resolved?.model,
+            providerEnv: resolved?.provider === 'ollama' ? this.getOllamaEnv() : undefined,
             outputFormat: 'stream-json',
             onComplete: async (result) => {
                 const responseText = extractResponseText(result);
@@ -328,6 +331,14 @@ export class CronScheduler {
                 }
             }
         });
+    }
+
+    private getOllamaEnv(): Record<string, string> {
+        return {
+            ANTHROPIC_BASE_URL: this.config.ollamaBaseUrl || 'http://localhost:11434',
+            ANTHROPIC_AUTH_TOKEN: 'ollama',
+            ANTHROPIC_API_KEY: '',
+        };
     }
 
     private routeOutput(job: CronJobRow, responseText: string): void {

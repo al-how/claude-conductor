@@ -71,6 +71,22 @@ telegram:
         expect(() => loadConfig(path)).toThrow();
     });
 
+    it('should parse ollama config', () => {
+        const path = writeConfig(`
+vault_path: /vault
+ollama:
+  base_url: "http://192.168.1.100:11434"
+`);
+        const config = loadConfig(path);
+        expect(config.ollama).toEqual({ base_url: 'http://192.168.1.100:11434' });
+    });
+
+    it('should accept config without ollama section', () => {
+        const path = writeConfig(`vault_path: /vault\n`);
+        const config = loadConfig(path);
+        expect(config.ollama).toBeUndefined();
+    });
+
     it('should throw on schema validation failure', () => {
         const path = writeConfig(`
 telegram:

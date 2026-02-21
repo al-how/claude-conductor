@@ -50,11 +50,16 @@ const BrowserConfigSchema = z.object({
     vnc: z.boolean().default(false)
 }).default({});
 
+const OllamaConfigSchema = z.object({
+    base_url: z.string().url()
+});
+
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
     telegram: TelegramConfigSchema.optional(),
     api: ApiConfigSchema.optional(),
+    ollama: OllamaConfigSchema.optional(),
     // cron: z.array(CronJobSchema).default([]), // Removed in favor of DB-driven cron
     webhooks: z.array(WebhookRouteSchema).default([]),
     queue: QueueConfigSchema,
@@ -67,3 +72,4 @@ export type CronJob = z.infer<typeof CronJobSchema>;
 export type WebhookRoute = z.infer<typeof WebhookRouteSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
+export type OllamaConfig = z.infer<typeof OllamaConfigSchema>;

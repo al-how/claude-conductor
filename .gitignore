@@ -8,3 +8,5 @@ coverage/
 *.sqlite
 config.local.yaml
 .worktrees/
+settings.local.json
+ntfy_hook.ps1

@@ -54,7 +54,7 @@ export async function main() {
     }
 
     // Initialize Dispatcher
-    const dispatcher = new Dispatcher(config.queue.max_concurrent, logger);
+    const dispatcher = new Dispatcher(config.queue.max_concurrent, logger, config.queue.timeout_seconds * 1000);
 
     // Initialize Telegram Bot
     let bot: TelegramBot | undefined;

@@ -66,6 +66,55 @@ describe('Dispatcher', () => {
         expect(callOrder).toEqual(['first', 'second']);
     });
 
+    it('should apply defaultTimeoutMs when task has no timeout', async () => {
+        const invokeSpy = vi.spyOn(ClaudeInvoke, 'invokeClaude').mockResolvedValue({
+            exitCode: 0,
+            stdout: '{}',
+            stderr: '',
+            timedOut: false
+        });
+
+        const customTimeoutDispatcher = new Dispatcher(1, undefined, 1800_000);
+
+        await new Promise<void>((resolve) => {
+            customTimeoutDispatcher.enqueue({
+                id: 'timeout-test',
+                source: 'telegram',
+                prompt: 'test',
+                onComplete: async () => resolve()
+            });
+        });
+
+        expect(invokeSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ timeout: 1800_000 })
+        );
+    });
+
+    it('should respect task-level timeout over default', async () => {
+        const invokeSpy = vi.spyOn(ClaudeInvoke, 'invokeClaude').mockResolvedValue({
+            exitCode: 0,
+            stdout: '{}',
+            stderr: '',
+            timedOut: false
+        });
+
+        const customTimeoutDispatcher = new Dispatcher(1, undefined, 1800_000);
+
+        await new Promise<void>((resolve) => {
+            customTimeoutDispatcher.enqueue({
+                id: 'task-timeout-test',
+                source: 'telegram',
+                prompt: 'test',
+                timeout: 60_000,
+                onComplete: async () => resolve()
+            });
+        });
+
+        expect(invokeSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ timeout: 60_000 })
+        );
+    });
+
     it('should handle errors gracefully', async () => {
         vi.spyOn(ClaudeInvoke, 'invokeClaude').mockRejectedValue(new Error('Spawn failed'));
 

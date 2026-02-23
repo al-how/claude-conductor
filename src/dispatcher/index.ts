@@ -12,9 +12,11 @@ export class Dispatcher {
     private queue: Task[] = [];
     private processing: boolean = false;
     private logger?: Logger;
+    private defaultTimeoutMs: number;
 
-    constructor(_maxConcurrent: number = 1, logger?: Logger) {
+    constructor(_maxConcurrent: number = 1, logger?: Logger, defaultTimeoutMs: number = 300_000) {
         this.logger = logger;
+        this.defaultTimeoutMs = defaultTimeoutMs;
     }
 
     public enqueue(task: Task): void {
@@ -45,7 +47,10 @@ export class Dispatcher {
                         invokeOptions.logger = this.logger;
                     }
 
-                    const result = await invokeClaude(invokeOptions);
+                    const result = await invokeClaude({
+                        ...invokeOptions,
+                        timeout: invokeOptions.timeout ?? this.defaultTimeoutMs,
+                    });
 
                     const duration = Math.round((Date.now() - startTime) / 1000);
                     this.logger?.info({ event: 'session_complete', taskId: task.id, source: task.source, duration, numTurns: result.numTurns, exitCode: result.exitCode }, 'Session complete');

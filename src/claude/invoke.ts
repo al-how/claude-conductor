@@ -3,6 +3,11 @@ import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
 import type { Logger } from 'pino';
 
+export interface StreamEvent {
+    type: 'assistant_text' | 'tool_use' | 'tool_result' | 'result';
+    data: Record<string, unknown>;
+}
+
 export interface ClaudeInvokeOptions {
     prompt: string;
     workingDir?: string;
@@ -20,6 +25,7 @@ export interface ClaudeInvokeOptions {
     timeout?: number;
     logger?: Logger;
     providerEnv?: Record<string, string>;
+    onStreamEvent?: (event: StreamEvent) => Promise<void>;
 }
 
 export interface ClaudeResult {
@@ -143,6 +149,9 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
             // Line-by-line parsing of stream-json events
             const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
+            // Serialize async event handling to preserve ordering
+            let eventChain = Promise.resolve();
+
             rl.on('line', (line) => {
                 const trimmed = line.trim();
                 if (!trimmed) return;
@@ -166,7 +175,19 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                     const content = message?.content;
                     if (Array.isArray(content)) {
                         for (const block of content) {
-                            handleContentEvent(block as Record<string, unknown>, logger);
+                            const typedBlock = block as Record<string, unknown>;
+                            handleContentEvent(typedBlock, logger);
+
+                            // Emit assistant_text stream events
+                            if (typedBlock.type === 'text' && typedBlock.text && options.onStreamEvent) {
+                                const streamEvent: StreamEvent = {
+                                    type: 'assistant_text',
+                                    data: { text: typedBlock.text }
+                                };
+                                eventChain = eventChain.then(() =>
+                                    options.onStreamEvent!(streamEvent)
+                                ).catch(e => logger?.warn({ err: e }, 'Stream event handler error'));
+                            }
                         }
                     }
                 }

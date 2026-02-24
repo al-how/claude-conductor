@@ -68,7 +68,8 @@ export async function main() {
             logger,
             db,
             dispatcher,
-            globalModel: config.model
+            globalModel: config.model,
+            streamingEnabled: config.telegram.streaming_enabled
         });
         // bot.start() begins long-polling and only resolves on stop() — don't await it
         bot.start().catch(err => logger.error({ err }, 'Telegram Bot polling error'));

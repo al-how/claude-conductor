@@ -18,9 +18,18 @@ export interface TelegramBotConfig {
     logger?: Logger;
     globalModel?: string;
     streamingEnabled?: boolean;
+    showToolEvents?: boolean;
 }
 
 const TELEGRAM_FILES_DIR = resolve(process.env.TELEGRAM_FILES_DIR || '/data/telegram-files');
+
+export function formatToolStatus(tool: string, arg?: string): string {
+    if (!arg) return `[tool] ${tool}`;
+    const collapsed = arg.replace(/[\n\r\t]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+    const maxLen = 120;
+    const truncated = collapsed.length > maxLen ? collapsed.slice(0, maxLen) + '…' : collapsed;
+    return `[tool] ${tool}: ${truncated}`;
+}
 
 export class TelegramBot {
     private bot: Bot;
@@ -32,6 +41,7 @@ export class TelegramBot {
     private stickyModel: string | undefined;
     private globalModel: string | undefined;
     private streamingEnabled: boolean;
+    private showToolEvents: boolean;
 
     constructor(config: TelegramBotConfig) {
         this.allowedUsers = new Set(config.allowedUsers);
@@ -41,6 +51,7 @@ export class TelegramBot {
         this.workingDir = config.workingDir;
         this.globalModel = config.globalModel;
         this.streamingEnabled = config.streamingEnabled ?? true;
+        this.showToolEvents = config.showToolEvents ?? true;
 
         if (!config.token) {
             this.logger?.error('Telegram bot token is missing in config');
@@ -271,11 +282,20 @@ export class TelegramBot {
         };
 
         const onStreamEvent = this.streamingEnabled ? async (event: StreamEvent) => {
-            if (event.type !== 'text_delta') return;
-            const text = String(event.data.text ?? '');
-            if (!text) return;
+            let chunk: string | undefined;
 
-            streamBuffer += text;
+            if (event.type === 'text_delta') {
+                chunk = String(event.data.text ?? '');
+            } else if (event.type === 'tool_use' && this.showToolEvents) {
+                chunk = '\n' + formatToolStatus(
+                    event.data.tool as string,
+                    event.data.arg as string | undefined
+                ) + '\n';
+            }
+
+            if (!chunk) return;
+
+            streamBuffer += chunk;
             await ensureStreamMessage();
 
             // Overflow handling: finalize current stream message and start a new one

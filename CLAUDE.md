@@ -40,6 +40,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 - `npx tsc --noEmit` — type-check only
 - `npx tsc` — full build (emits to `dist/`)
 - `npx vitest run` — run all tests
+- `createMockChild` in invoke tests pushes all lines in one tick — readline may not process all lines before `close`. Use one stream event per assertion or await between pushes.
 
 ## Claude Code Invocation Patterns
 
@@ -115,6 +116,7 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 Default output format is `stream-json` (line-delimited JSON events). Key event types:
 - `system` (subtype `init`) — first event, includes `session_id`, `tools`, `model`
 - `assistant` — Claude's response messages and tool use
+- `stream_event` — token-level deltas (requires `--include-partial-messages`). Inner event has `event.type: 'content_block_delta'` with `event.delta.type: 'text_delta'`
 - `result` — final event with `result`, `text`, `subtype`, `num_turns`, `session_id`
 - `subtype: 'error_max_turns'` — turn limit hit (may include partial `result`/`text`)
 - `type: 'result'` with no `result`/`text` — finished without response
@@ -167,6 +169,7 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - Not a chat UI, framework, or plugin system — thin orchestration only
 - Telegram messages capped at 4096 chars (needs chunking for long output)
 - `streaming_enabled` (default: true) toggles message streaming for the Telegram bot — streams plain text edits in-place while generating, then sends the final formatted HTML response and deletes stream messages
+- `invokeClaude` awaits all queued async `onStreamEvent` handlers (`eventChain`) before resolving — both `onComplete` and `onError` in Telegram must flush buffers and clean up stream messages
 - Claude Code auto memory is keyed to working directory — keep `/vault` consistent across all invocations
 - Harness instructions go in `/vault/.claude/rules/` (modular, path-scoped) rather than a monolithic CLAUDE.md
 - Design docs and implementation plans go in `docs/plans/YYYY-MM-DD-<topic>-{design,plan}.md`

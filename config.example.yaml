@@ -7,6 +7,8 @@ telegram:
     - 123456789  # Your Telegram user ID
   # Stream partial assistant responses to Telegram (edit-in-place while generating)
   streaming_enabled: true
+  # Show tool use events (e.g. [tool] Read: /vault/file.md) inline in stream messages
+  show_tool_events: true
 
 cron:
   - name: heartbeat

@@ -4,6 +4,7 @@ const TelegramConfigSchema = z.object({
     bot_token: z.string().min(1, 'Telegram bot token is required'),
     allowed_users: z.array(z.number().int().positive()).min(1, 'At least one allowed user required'),
     streaming_enabled: z.boolean().default(true),
+    show_tool_events: z.boolean().default(true),
 });
 
 export const CronJobSchema = z.object({

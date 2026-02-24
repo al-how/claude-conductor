@@ -399,6 +399,32 @@ describe('stream-json event parsing', () => {
         expect(textDeltas).toHaveLength(0);
     });
 
+    it('should wait for async stream handlers to complete before resolving', async () => {
+        const order: string[] = [];
+        const lines = [
+            JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'hello' }] } }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({
+            prompt: 'test',
+            logger: createMockLogger() as never,
+            onStreamEvent: async (event) => {
+                if (event.type === 'assistant_text') {
+                    // Simulate slow async handler
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    order.push('handler_done');
+                }
+            }
+        });
+
+        order.push('invoke_resolved');
+
+        // Handler must complete before invokeClaude resolves
+        expect(order).toEqual(['handler_done', 'invoke_resolved']);
+    });
+
     it('should handle tool_result with non-string content', async () => {
         const mockLogger = createMockLogger();
         const lines = [

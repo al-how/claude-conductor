@@ -319,8 +319,11 @@ export class TelegramBot {
                 }
                 clearInterval(typingInterval);
 
-                // Clear any pending stream flush
+                // Clear any pending stream flush and flush remaining buffer
                 if (flushTimer) clearTimeout(flushTimer);
+                if (streamBuffer && streamMessageId) {
+                    await flushStream();
+                }
 
                 // Response handling
                 let responseText = extractResponseText(result);
@@ -352,6 +355,15 @@ export class TelegramBot {
                 clearInterval(typingInterval);
                 if (flushTimer) clearTimeout(flushTimer);
                 await ctx.reply(`Error: ${err.message}`);
+
+                // Clean up stream messages
+                for (const msgId of streamMessageIds) {
+                    try {
+                        await ctx.api.deleteMessage(ctx.chat!.id, msgId);
+                    } catch (e) {
+                        this.logger?.warn({ err: e, msgId }, 'Failed to delete stream message');
+                    }
+                }
             }
         });
     }

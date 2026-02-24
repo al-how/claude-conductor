@@ -475,6 +475,80 @@ describe('TelegramBot streaming', () => {
     });
 });
 
+describe('TelegramBot streaming finalization', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    function setupBotAndEnqueue() {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            streamingEnabled: true
+        });
+
+        const mockEditMessageText = vi.fn();
+        const mockDeleteMessage = vi.fn();
+        const mockReply = vi.fn().mockResolvedValue({ message_id: 999 });
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: mockReply,
+            replyWithChatAction: vi.fn(),
+            api: { editMessageText: mockEditMessageText, deleteMessage: mockDeleteMessage }
+        };
+
+        return { enqueueSpy, mockCtx, mockEditMessageText, mockDeleteMessage, mockReply };
+    }
+
+    it('should flush buffered text before sending final response on complete', async () => {
+        const { enqueueSpy, mockCtx, mockEditMessageText } = setupBotAndEnqueue();
+
+        const textHandler = getMessageHandler()!;
+        await textHandler(mockCtx);
+
+        const task = enqueueSpy.mock.calls[0][0];
+
+        // Simulate streaming: send a text_delta to create a stream message and buffer
+        await task.onStreamEvent({ timestamp: new Date().toISOString(), type: 'text_delta', data: { text: 'partial response' } });
+
+        // Simulate completion — buffer should be flushed
+        await task.onComplete({ exitCode: 0, stdout: '{"result":"done"}', stderr: '', timedOut: false });
+
+        // editMessageText should have been called to flush the buffer
+        expect(mockEditMessageText).toHaveBeenCalledWith(100, 999, expect.stringContaining('partial response'));
+    });
+
+    it('should delete stream messages on error', async () => {
+        const { enqueueSpy, mockCtx, mockDeleteMessage } = setupBotAndEnqueue();
+
+        const textHandler = getMessageHandler()!;
+        await textHandler(mockCtx);
+
+        const task = enqueueSpy.mock.calls[0][0];
+
+        // Simulate streaming to create a stream message
+        await task.onStreamEvent({ timestamp: new Date().toISOString(), type: 'text_delta', data: { text: 'partial' } });
+
+        // Simulate error
+        await task.onError(new Error('something went wrong'));
+
+        // Stream messages should be cleaned up
+        expect(mockDeleteMessage).toHaveBeenCalledWith(100, 999);
+    });
+});
+
 describe('screenshot detection', () => {
     it('should detect screenshot paths in response text', () => {
         const text = 'Here is what I found. Screenshot saved to /data/screenshots/2026-02-21-123456.png';

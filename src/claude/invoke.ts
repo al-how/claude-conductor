@@ -135,6 +135,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
         let resultJson: Record<string, unknown> | null = null;
         let numTurns: number | undefined;
         let sessionId: string | undefined;
+        let eventChain = Promise.resolve();
 
         // Strip ANTHROPIC_API_KEY so CLI sessions authenticate via OAuth
         // (API key is only needed by Agent SDK in invoke-api.ts)
@@ -156,7 +157,6 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
             const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
             // Serialize async event handling to preserve ordering
-            let eventChain = Promise.resolve();
             const wrappedStreamEvent = onStreamEvent ? (event: StreamEvent) => {
                 eventChain = eventChain.then(() =>
                     Promise.resolve(onStreamEvent(event))
@@ -281,8 +281,12 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
             resolve({ exitCode: -1, stdout, stderr: stderr || err.message, timedOut, numTurns, sessionId });
         });
 
-        child.on('close', (code) => {
+        child.on('close', async (code) => {
             if (timeoutHandle) clearTimeout(timeoutHandle);
+
+            // Wait for all async stream event handlers to finish before resolving
+            await eventChain;
+
             logger?.debug({ exitCode: code, timedOut }, 'Claude Code finished');
 
             // For stream-json, reconstruct a JSON string that matches the legacy format

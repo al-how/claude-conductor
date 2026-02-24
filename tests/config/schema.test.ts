@@ -140,6 +140,26 @@ describe('ConfigSchema', () => {
         expect(result.success).toBe(false);
     });
 
+    it('should accept telegram.streaming_enabled true', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 'x', allowed_users: [1], streaming_enabled: true }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.telegram?.streaming_enabled).toBe(true);
+        }
+    });
+
+    it('should default telegram.streaming_enabled to true when omitted', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 'x', allowed_users: [1] }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.telegram?.streaming_enabled).toBe(true);
+        }
+    });
+
     it('should apply queue defaults', () => {
         const result = ConfigSchema.safeParse({});
         expect(result.success).toBe(true);

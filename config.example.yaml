@@ -5,6 +5,8 @@ telegram:
   bot_token: "${TELEGRAM_BOT_TOKEN}"
   allowed_users:
     - 123456789  # Your Telegram user ID
+  # Stream partial assistant responses to Telegram (edit-in-place while generating)
+  streaming_enabled: true
 
 cron:
   - name: heartbeat

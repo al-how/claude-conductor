@@ -166,6 +166,7 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - Single-user, single-bot, single-vault system
 - Not a chat UI, framework, or plugin system — thin orchestration only
 - Telegram messages capped at 4096 chars (needs chunking for long output)
+- `streaming_enabled` (default: true) toggles message streaming for the Telegram bot — streams plain text edits in-place while generating, then sends the final formatted HTML response and deletes stream messages
 - Claude Code auto memory is keyed to working directory — keep `/vault` consistent across all invocations
 - Harness instructions go in `/vault/.claude/rules/` (modular, path-scoped) rather than a monolithic CLAUDE.md
 - Design docs and implementation plans go in `docs/plans/YYYY-MM-DD-<topic>-{design,plan}.md`

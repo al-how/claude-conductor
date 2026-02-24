@@ -26,7 +26,7 @@ export interface ClaudeInvokeOptions {
     timeout?: number;
     logger?: Logger;
     providerEnv?: Record<string, string>;
-    onStreamEvent?: (event: StreamEvent) => void;
+    onStreamEvent?: (event: StreamEvent) => void | Promise<void>;
 }
 
 export interface ClaudeResult {
@@ -151,6 +151,14 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
             // Line-by-line parsing of stream-json events
             const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
+            // Serialize async event handling to preserve ordering
+            let eventChain = Promise.resolve();
+            const wrappedStreamEvent = onStreamEvent ? (event: StreamEvent) => {
+                eventChain = eventChain.then(() =>
+                    Promise.resolve(onStreamEvent(event))
+                ).catch(e => logger?.warn({ err: e }, 'Stream event handler error'));
+            } : undefined;
+
             rl.on('line', (line) => {
                 const trimmed = line.trim();
                 if (!trimmed) return;
@@ -170,7 +178,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
 
                 // Emit system_init event
                 if (eventType === 'system') {
-                    onStreamEvent?.({
+                    wrappedStreamEvent?.({
                         timestamp: new Date().toISOString(),
                         type: 'system_init',
                         data: {
@@ -187,7 +195,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                     const content = message?.content;
                     if (Array.isArray(content)) {
                         for (const block of content) {
-                            handleContentEvent(block as Record<string, unknown>, logger, onStreamEvent);
+                            handleContentEvent(block as Record<string, unknown>, logger, wrappedStreamEvent);
                         }
                     }
                 }
@@ -208,7 +216,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                                     { event: 'tool_result', toolUseId: block.tool_use_id, lines, preview },
                                     `Tool result: ${lines} lines`
                                 );
-                                onStreamEvent?.({
+                                wrappedStreamEvent?.({
                                     timestamp: new Date().toISOString(),
                                     type: 'tool_result',
                                     data: { content: resultContent, lines, toolUseId: block.tool_use_id }
@@ -227,7 +235,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                 if (eventType === 'result') {
                     resultJson = parsed;
                     numTurns = parsed.num_turns as number | undefined;
-                    onStreamEvent?.({
+                    wrappedStreamEvent?.({
                         timestamp: new Date().toISOString(),
                         type: 'result',
                         data: { text: parsed.text ?? parsed.result, subtype: parsed.subtype, numTurns: parsed.num_turns }

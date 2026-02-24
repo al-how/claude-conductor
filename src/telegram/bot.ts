@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml, extractScreenshotPaths } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
 import { resolveModel, isKnownAlias } from '../claude/models.js';
-import type { ClaudeResult } from '../claude/invoke.js';
+import type { ClaudeResult, StreamEvent } from '../claude/invoke.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -17,6 +17,7 @@ export interface TelegramBotConfig {
     db?: DatabaseManager;
     logger?: Logger;
     globalModel?: string;
+    streamingEnabled?: boolean;
 }
 
 const TELEGRAM_FILES_DIR = resolve(process.env.TELEGRAM_FILES_DIR || '/data/telegram-files');
@@ -30,6 +31,7 @@ export class TelegramBot {
     private workingDir?: string;
     private stickyModel: string | undefined;
     private globalModel: string | undefined;
+    private streamingEnabled: boolean;
 
     constructor(config: TelegramBotConfig) {
         this.allowedUsers = new Set(config.allowedUsers);
@@ -38,6 +40,7 @@ export class TelegramBot {
         this.db = config.db;
         this.workingDir = config.workingDir;
         this.globalModel = config.globalModel;
+        this.streamingEnabled = config.streamingEnabled ?? true;
 
         if (!config.token) {
             this.logger?.error('Telegram bot token is missing in config');
@@ -242,6 +245,61 @@ export class TelegramBot {
 
         const model = resolveModel(modelOverride || this.stickyModel || this.globalModel || undefined)?.model;
 
+        // Streaming state
+        let streamBuffer = '';
+        let streamMessageId: number | undefined;
+        const streamMessageIds: number[] = [];
+        let lastEditAt = 0;
+        let flushTimer: ReturnType<typeof setTimeout> | undefined;
+        const throttleMs = 1000;
+
+        const ensureStreamMessage = async () => {
+            if (!streamMessageId) {
+                const msg = await ctx.reply('…');
+                streamMessageId = msg.message_id;
+                streamMessageIds.push(streamMessageId);
+            }
+        };
+
+        const flushStream = async () => {
+            if (!streamMessageId) return;
+            try {
+                await ctx.api.editMessageText(ctx.chat!.id, streamMessageId, streamBuffer.slice(0, 4096));
+            } catch (e) {
+                this.logger?.warn({ err: e }, 'Failed to edit stream message');
+            }
+        };
+
+        const onStreamEvent = this.streamingEnabled ? async (event: StreamEvent) => {
+            if (event.type !== 'assistant_text') return;
+            const text = String(event.data.text ?? '');
+            if (!text) return;
+
+            streamBuffer += text;
+            await ensureStreamMessage();
+
+            // Overflow handling: finalize current stream message and start a new one
+            if (streamBuffer.length > 4096) {
+                await flushStream();
+                streamBuffer = streamBuffer.slice(4096);
+                streamMessageId = undefined;
+                await ensureStreamMessage();
+            }
+
+            // Throttled edits
+            const now = Date.now();
+            if (now - lastEditAt >= throttleMs) {
+                lastEditAt = now;
+                await flushStream();
+            } else if (!flushTimer) {
+                flushTimer = setTimeout(async () => {
+                    flushTimer = undefined;
+                    lastEditAt = Date.now();
+                    await flushStream();
+                }, throttleMs - (now - lastEditAt));
+            }
+        } : undefined;
+
         this.dispatcher!.enqueue({
             id: taskId,
             source: 'telegram',
@@ -251,6 +309,7 @@ export class TelegramBot {
             dangerouslySkipPermissions: true,
             ...(hasSession ? { continue: true } : {}),
             model,
+            onStreamEvent,
             onComplete: async (result: ClaudeResult) => {
                 // Persist the session ID so we know to use --continue next time
                 if (result.sessionId && this.db) {
@@ -258,6 +317,9 @@ export class TelegramBot {
                     catch (e) { this.logger?.error({ err: e }, 'Failed to save session ID'); }
                 }
                 clearInterval(typingInterval);
+
+                // Clear any pending stream flush
+                if (flushTimer) clearTimeout(flushTimer);
 
                 // Response handling
                 let responseText = extractResponseText(result);
@@ -273,10 +335,21 @@ export class TelegramBot {
                     }
                 }
 
+                // Send final formatted response
                 await this.sendTelegramResponse(ctx, responseText);
+
+                // Delete stream messages to avoid duplication
+                for (const msgId of streamMessageIds) {
+                    try {
+                        await ctx.api.deleteMessage(ctx.chat!.id, msgId);
+                    } catch (e) {
+                        this.logger?.warn({ err: e, msgId }, 'Failed to delete stream message');
+                    }
+                }
             },
             onError: async (err) => {
                 clearInterval(typingInterval);
+                if (flushTimer) clearTimeout(flushTimer);
                 await ctx.reply(`Error: ${err.message}`);
             }
         });

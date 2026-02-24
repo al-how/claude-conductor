@@ -79,6 +79,21 @@ describe('buildClaudeArgs', () => {
         const args = buildClaudeArgs({ prompt: 'hi' });
         expect(args).not.toContain('--model');
     });
+
+    it('should include --include-partial-messages when includePartialMessages is true', () => {
+        const args = buildClaudeArgs({ prompt: 'hi', includePartialMessages: true });
+        expect(args).toContain('--include-partial-messages');
+    });
+
+    it('should not include --include-partial-messages by default', () => {
+        const args = buildClaudeArgs({ prompt: 'hi' });
+        expect(args).not.toContain('--include-partial-messages');
+    });
+
+    it('should not include --include-partial-messages for non-stream-json format', () => {
+        const args = buildClaudeArgs({ prompt: 'hi', outputFormat: 'json', includePartialMessages: true });
+        expect(args).not.toContain('--include-partial-messages');
+    });
 });
 
 describe('parseClaudeOutput', () => {
@@ -336,6 +351,52 @@ describe('stream-json event parsing', () => {
             expect.objectContaining({ event: 'tool_result', preview: 'B'.repeat(500) }),
             expect.any(String)
         );
+    });
+
+    it('should emit text_delta events from stream_event content_block_delta', async () => {
+        const events: any[] = [];
+        const lines = [
+            JSON.stringify({
+                type: 'stream_event',
+                event: {
+                    type: 'content_block_delta',
+                    delta: { type: 'text_delta', text: 'Hello' }
+                }
+            }),
+            JSON.stringify({ type: 'result', result: 'Hello', text: 'Hello', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({
+            prompt: 'test',
+            logger: createMockLogger() as never,
+            onStreamEvent: (event) => { events.push(event); }
+        });
+
+        const textDeltas = events.filter(e => e.type === 'text_delta');
+        expect(textDeltas).toHaveLength(1);
+        expect(textDeltas[0].data.text).toBe('Hello');
+    });
+
+    it('should ignore stream_event that is not content_block_delta', async () => {
+        const events: any[] = [];
+        const lines = [
+            JSON.stringify({
+                type: 'stream_event',
+                event: { type: 'message_start' }
+            }),
+            JSON.stringify({ type: 'result', result: 'done', text: 'done', num_turns: 1 }),
+        ];
+        mockedSpawn.mockReturnValue(createMockChild(lines) as never);
+
+        await invokeClaude({
+            prompt: 'test',
+            logger: createMockLogger() as never,
+            onStreamEvent: (event) => { events.push(event); }
+        });
+
+        const textDeltas = events.filter(e => e.type === 'text_delta');
+        expect(textDeltas).toHaveLength(0);
     });
 
     it('should handle tool_result with non-string content', async () => {

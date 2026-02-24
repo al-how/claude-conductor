@@ -9,3 +9,5 @@ I want to work on the message UI in telegram. For example:
   3. Multi-message response grouping — When a response gets chunked into multiple messages, they arrive as separate messages. Could add a subtle "1/3", "2/3", "3/3" indicator, or send them as a single reply thread.
   4. `/status` command** — Show what's in the queue, if a cron job is running, last execution time, etc.          
   5. Fix this problem: Claude ran out of turns (26 used). The task may be partially complete — try a follow-up message to continue.
+
+cd /boot/config/plugins/compose.manager/projects/claude-conductor/ && docker stop claude-conductor && docker rm claude-conductor && docker compose pull && docker compose up -d

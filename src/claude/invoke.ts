@@ -5,7 +5,7 @@ import type { Logger } from 'pino';
 
 export interface StreamEvent {
     timestamp: string;
-    type: 'system_init' | 'tool_use' | 'tool_result' | 'assistant_text' | 'result' | 'error';
+    type: 'system_init' | 'tool_use' | 'tool_result' | 'assistant_text' | 'text_delta' | 'result' | 'error';
     data: Record<string, unknown>;
 }
 
@@ -23,6 +23,7 @@ export interface ClaudeInvokeOptions {
     outputFormat?: 'text' | 'json' | 'stream-json';
     model?: string;
     appendSystemPrompt?: string;
+    includePartialMessages?: boolean;
     timeout?: number;
     logger?: Logger;
     providerEnv?: Record<string, string>;
@@ -73,6 +74,9 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
 
     if (outputFormat === 'stream-json') {
         args.push('--verbose');
+        if (options.includePartialMessages) {
+            args.push('--include-partial-messages');
+        }
     }
 
     return args;
@@ -222,6 +226,21 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                                     data: { content: resultContent, lines, toolUseId: block.tool_use_id }
                                 });
                             }
+                        }
+                    }
+                }
+
+                // Handle stream_event — token-level deltas from --include-partial-messages
+                if (eventType === 'stream_event') {
+                    const innerEvent = parsed.event as Record<string, unknown> | undefined;
+                    if (innerEvent?.type === 'content_block_delta') {
+                        const delta = innerEvent.delta as Record<string, unknown> | undefined;
+                        if (delta?.type === 'text_delta' && delta.text) {
+                            wrappedStreamEvent?.({
+                                timestamp: new Date().toISOString(),
+                                type: 'text_delta',
+                                data: { text: delta.text as string }
+                            });
                         }
                     }
                 }

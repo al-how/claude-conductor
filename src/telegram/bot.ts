@@ -271,7 +271,7 @@ export class TelegramBot {
         };
 
         const onStreamEvent = this.streamingEnabled ? async (event: StreamEvent) => {
-            if (event.type !== 'assistant_text') return;
+            if (event.type !== 'text_delta') return;
             const text = String(event.data.text ?? '');
             if (!text) return;
 
@@ -307,6 +307,7 @@ export class TelegramBot {
             workingDir: this.workingDir,
             logger: this.logger,
             dangerouslySkipPermissions: true,
+            includePartialMessages: this.streamingEnabled,
             ...(hasSession ? { continue: true } : {}),
             model,
             onStreamEvent,

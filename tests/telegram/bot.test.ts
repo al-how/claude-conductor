@@ -375,6 +375,72 @@ describe('TelegramBot streaming', () => {
         expect(task.onStreamEvent).toBeUndefined();
     });
 
+    it('should pass includePartialMessages when streamingEnabled is true', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            streamingEnabled: true
+        });
+
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ includePartialMessages: true })
+        );
+    });
+
+    it('should not pass includePartialMessages when streamingEnabled is false', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            streamingEnabled: false
+        });
+
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ includePartialMessages: false })
+        );
+    });
+
     it('should default streamingEnabled to true', async () => {
         const dispatcher = new Dispatcher();
         const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');

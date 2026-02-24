@@ -10,6 +10,7 @@ export class ExecutionLogCollector {
     private events: StreamEvent[] = [];
 
     public collect = (event: StreamEvent): void => {
+        if (event.type === 'text_delta') return;
         this.events.push(event);
     };
 

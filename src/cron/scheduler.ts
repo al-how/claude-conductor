@@ -7,6 +7,7 @@ import type { DatabaseManager, CronJobRow } from '../db/index.js';
 import { extractResponseText } from '../claude/invoke.js';
 import { invokeApi } from '../claude/invoke-api.js';
 import { resolveModel } from '../claude/models.js';
+import { ExecutionLogCollector, formatExecutionLog, writeExecutionLog, pruneOldLogs } from '../claude/execution-log.js';
 
 export interface ApiConfig {
     anthropicApiKey: string;
@@ -287,6 +288,8 @@ export class CronScheduler {
         const enrichedPrompt = job.prompt + historyContext;
         const resolved = resolveModel(job.model ?? this.config.globalModel ?? undefined);
 
+        const collector = new ExecutionLogCollector();
+
         this.config.dispatcher.enqueue({
             id: `cron-${job.name}-${Date.now()}`,
             source: 'cron',
@@ -299,6 +302,7 @@ export class CronScheduler {
             model: resolved?.model,
             providerEnv: resolved?.provider === 'ollama' ? this.getOllamaEnv() : undefined,
             outputFormat: 'stream-json',
+            onStreamEvent: collector.collect,
             onComplete: async (result) => {
                 const responseText = extractResponseText(result);
                 const finishedAt = new Date().toISOString();
@@ -314,6 +318,22 @@ export class CronScheduler {
                     response_preview: responseText,
                     error: result.stderr
                 });
+
+                // Write execution log file
+                try {
+                    const logContent = formatExecutionLog(collector.getEvents(), {
+                        jobName: job.name,
+                        prompt: enrichedPrompt,
+                        startedAt: startTime,
+                        finishedAt,
+                        exitCode: result.exitCode,
+                    });
+                    const logPath = await writeExecutionLog(this.config.vaultPath, job.name, logContent, startTime);
+                    this.logger.debug({ jobName: job.name, logPath }, 'Execution log written');
+                    await pruneOldLogs(this.config.vaultPath, job.name);
+                } catch (logErr) {
+                    this.logger.warn({ err: logErr, jobName: job.name }, 'Failed to write execution log');
+                }
 
                 // Save to history for dedup on next run
                 if (result.exitCode === 0 && responseText.trim()) {

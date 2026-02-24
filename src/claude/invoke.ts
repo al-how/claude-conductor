@@ -3,6 +3,12 @@ import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
 import type { Logger } from 'pino';
 
+export interface StreamEvent {
+    timestamp: string;
+    type: 'system_init' | 'tool_use' | 'tool_result' | 'assistant_text' | 'result' | 'error';
+    data: Record<string, unknown>;
+}
+
 export interface ClaudeInvokeOptions {
     prompt: string;
     workingDir?: string;
@@ -20,6 +26,7 @@ export interface ClaudeInvokeOptions {
     timeout?: number;
     logger?: Logger;
     providerEnv?: Record<string, string>;
+    onStreamEvent?: (event: StreamEvent) => void;
 }
 
 export interface ClaudeResult {
@@ -111,6 +118,7 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
     logger?.debug({ args, workingDir }, 'Invoking Claude Code');
 
     const effectiveFormat = options.outputFormat ?? 'stream-json';
+    const { onStreamEvent } = options;
 
     return new Promise((resolve) => {
         let stderr = '';
@@ -160,13 +168,26 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                 // Debug: log all event types for format diagnosis
                 logger?.debug({ eventType, keys: Object.keys(parsed) }, 'Stream event received');
 
+                // Emit system_init event
+                if (eventType === 'system') {
+                    onStreamEvent?.({
+                        timestamp: new Date().toISOString(),
+                        type: 'system_init',
+                        data: {
+                            model: parsed.model,
+                            tools: parsed.tools,
+                            sessionId: parsed.session_id,
+                        }
+                    });
+                }
+
                 // Handle assistant messages — content array is at parsed.message.content
                 if (eventType === 'assistant') {
                     const message = parsed.message as Record<string, unknown> | undefined;
                     const content = message?.content;
                     if (Array.isArray(content)) {
                         for (const block of content) {
-                            handleContentEvent(block as Record<string, unknown>, logger);
+                            handleContentEvent(block as Record<string, unknown>, logger, onStreamEvent);
                         }
                     }
                 }
@@ -187,6 +208,11 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                                     { event: 'tool_result', toolUseId: block.tool_use_id, lines, preview },
                                     `Tool result: ${lines} lines`
                                 );
+                                onStreamEvent?.({
+                                    timestamp: new Date().toISOString(),
+                                    type: 'tool_result',
+                                    data: { content: resultContent, lines, toolUseId: block.tool_use_id }
+                                });
                             }
                         }
                     }
@@ -201,6 +227,11 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                 if (eventType === 'result') {
                     resultJson = parsed;
                     numTurns = parsed.num_turns as number | undefined;
+                    onStreamEvent?.({
+                        timestamp: new Date().toISOString(),
+                        type: 'result',
+                        data: { text: parsed.text ?? parsed.result, subtype: parsed.subtype, numTurns: parsed.num_turns }
+                    });
                 }
             });
         } else {
@@ -248,12 +279,17 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
     });
 }
 
-function handleContentEvent(block: Record<string, unknown>, logger?: Logger): void {
+function handleContentEvent(block: Record<string, unknown>, logger?: Logger, onStreamEvent?: (event: StreamEvent) => void): void {
     if (block.type === 'tool_use') {
         const toolName = block.name as string || 'unknown';
         const input = (block.input as Record<string, unknown>) || {};
         const arg = extractToolArg(toolName, input);
         logger?.info({ event: 'tool_use', tool: toolName, arg }, `Tool: ${toolName}`);
+        onStreamEvent?.({
+            timestamp: new Date().toISOString(),
+            type: 'tool_use',
+            data: { tool: toolName, arg, input }
+        });
     }
     if (block.type === 'text' && block.text) {
         const preview = block.text as string;
@@ -261,6 +297,11 @@ function handleContentEvent(block: Record<string, unknown>, logger?: Logger): vo
             { event: 'assistant_text', preview },
             'Assistant response'
         );
+        onStreamEvent?.({
+            timestamp: new Date().toISOString(),
+            type: 'assistant_text',
+            data: { text: preview }
+        });
     }
 }
 

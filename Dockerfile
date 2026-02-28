@@ -66,6 +66,7 @@ ARG VERSION=0.0.0
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1 \
     PATH="/home/claude/.local/bin:$PATH" \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     NODE_ENV=production \
     PORT=3000 \
     HOST=0.0.0.0 \

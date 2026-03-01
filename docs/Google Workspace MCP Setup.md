@@ -20,26 +20,27 @@ This guide walks you through integrating the [taylorwilsdon/google_workspace_mcp
    - Go to **APIs & Services** > **Library**
    - Search for `Gmail API` and click **Enable**
    - (Optional) Also enable: Calendar API, Google Drive API, Google Docs API
-4. Create OAuth 2.0 credentials:
-   - Go to **APIs & Services** > **Credentials**
-   - Click **+ Create Credentials** > **OAuth client ID**
-   - If prompted, configure the OAuth consent screen first:
-     - User Type: **External** (for personal accounts) or **Internal** (for Workspace)
-     - Fill in app name: `Claude Conductor`
-     - User support email: your email
-     - Developer contact: your email
-     - Click **Save and Continue** through the remaining screens
-   - Back on the Credentials page, click **+ Create Credentials** > **OAuth client ID**
+4. Configure the OAuth consent screen:
+   - Go to **Google Auth platform** > **Branding** (in the left sidebar)
+   - If prompted, click **Get Started**
+   - Enter app name: `Claude Conductor` and your support email, click **Next**
+   - Under **Audience**, select **External**, click **Next**
+   - Enter your developer contact email, click **Next**
+   - Agree to the policy and click **Create**
+5. Create OAuth 2.0 credentials:
+   - Go to **Google Auth platform** > **Clients** (or **APIs & Services** > **Credentials**)
+   - Click **+ Create Client**
    - Application type: **Desktop application**
    - Name: `Claude Conductor`
    - Click **Create**
-5. Copy the credentials:
+6. Copy the credentials:
    - A popup shows **Client ID** and **Client Secret**
    - Copy both values — you'll need them in the next step
-6. **IMPORTANT:** Set project to Production (optional but recommended):
-   - This prevents the 7-day test token expiry
-   - Go to **APIs & Services** > **OAuth consent screen**
-   - Click **Make it Public** (if appropriate for your use case)
+7. **IMPORTANT:** Publish the app to avoid 7-day token expiry:
+   - Go to **Google Auth platform** > **Audience**
+   - Under **Publishing status**, click **Publish App**
+   - Confirm — this changes status from "Testing" to "In production"
+   - (Personal-use apps don't need Google verification; just confirm the prompt)
 
 ## Step 2: Generate and Store OAuth Tokens
 

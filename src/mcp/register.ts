@@ -113,7 +113,7 @@ export function registerGoogleWorkspaceMcp(wsConfig: GoogleWorkspaceConfig, logg
     if (process.env.GOOGLE_OAUTH_CLIENT_ID) env.GOOGLE_OAUTH_CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
     if (process.env.GOOGLE_OAUTH_CLIENT_SECRET) env.GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
     if (process.env.USER_GOOGLE_EMAIL) env.USER_GOOGLE_EMAIL = process.env.USER_GOOGLE_EMAIL;
-    env.XDG_CONFIG_HOME = wsConfig.token_dir;
+    env.GOOGLE_MCP_CREDENTIALS_DIR = wsConfig.token_dir;
 
     config.mcpServers['google-workspace'] = {
         type: 'stdio',

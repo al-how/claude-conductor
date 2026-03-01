@@ -6,7 +6,7 @@ This guide walks you through integrating the [taylorwilsdon/google_workspace_mcp
 
 - **Google account** with Google Workspace or personal Google account
 - **Google Cloud Console** access
-- **pip** and **Python 3.7+** on your host machine (for local OAuth token generation)
+- **pip** and **Python 3.10+** on your host machine (for local OAuth token generation)
 - **Docker** and the Claude Conductor container
 
 ## Step 1: Create Google Cloud Project and OAuth Credentials
@@ -62,24 +62,24 @@ The `workspace-mcp` server needs authorization tokens. You'll generate these on 
 3. A browser window will open — authorize your Google account:
    - Click **Allow** when prompted
    - You should see a success message
-   - The tokens are now saved to `~/.config/workspace-mcp/`
+   - The tokens are now saved to `~/.google_workspace_mcp/credentials/`
 
 4. Copy the tokens to your project:
    ```bash
    # Navigate to your Claude Conductor project directory
-   cp -r ~/.config/workspace-mcp/ ./google-workspace-tokens/
+   cp -r ~/.google_workspace_mcp/credentials/ ./google-workspace-tokens/
    ```
 
 5. Verify the tokens exist:
    ```bash
    ls -la ./google-workspace-tokens/
-   # Should show: secrets.json, tokens.json, etc.
+   # Should show credential/token JSON files
    ```
 
 **Note:** On Windows, `workspace-mcp` stores tokens at:
 ```
-%APPDATA%\workspace-mcp\
-# Usually: C:\Users\<username>\AppData\Roaming\workspace-mcp\
+~\.google_workspace_mcp\credentials\
+# Usually: C:\Users\<username>\.google_workspace_mcp\credentials\
 ```
 
 Copy this folder to `./google-workspace-tokens/` in your project.

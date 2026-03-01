@@ -58,6 +58,13 @@ const OllamaConfigSchema = z.object({
     base_url: z.string().url()
 });
 
+const GoogleWorkspaceConfigSchema = z.object({
+    enabled: z.boolean().default(false),
+    tool_tier: z.enum(['core', 'extended', 'complete']).default('core'),
+    read_only: z.boolean().default(false),
+    token_dir: z.string().default('/data/google-workspace-tokens'),
+}).default({});
+
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
@@ -67,7 +74,8 @@ export const ConfigSchema = z.object({
     // cron: z.array(CronJobSchema).default([]), // Removed in favor of DB-driven cron
     webhooks: z.array(WebhookRouteSchema).default([]),
     queue: QueueConfigSchema,
-    browser: BrowserConfigSchema
+    browser: BrowserConfigSchema,
+    google_workspace: GoogleWorkspaceConfigSchema
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -77,3 +85,4 @@ export type WebhookRoute = z.infer<typeof WebhookRouteSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type OllamaConfig = z.infer<typeof OllamaConfigSchema>;
+export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;

@@ -60,6 +60,7 @@ RUN chmod +x /app/scripts/*.sh
 # This ensures the binary lands in /home/claude/.local/bin
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip install workspace-mcp
 
 ARG GIT_SHA=unknown
 ARG VERSION=0.0.0

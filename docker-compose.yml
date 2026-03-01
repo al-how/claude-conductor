@@ -15,6 +15,8 @@ services:
       - ./data:/data
       # Mount .claude directory for credentials and memory
       - ./.claude:/home/claude/.claude
+      # Google Workspace MCP token persistence
+      - ./google-workspace-tokens:/data/google-workspace-tokens
     environment:
       # Required for API execution mode (execution_mode: 'api' cron jobs)
       # Reference this in config.yaml as: anthropic_api_key: "${ANTHROPIC_API_KEY}"
@@ -26,6 +28,10 @@ services:
       # GitHub token for gh CLI — allows Claude to create issues, PRs, etc.
       # Requires repo scope (or public_repo for public repos only)
       - GH_TOKEN=${GH_TOKEN:-}
+      # Google Workspace MCP (Gmail, Calendar, Drive, etc.)
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - USER_GOOGLE_EMAIL=${USER_GOOGLE_EMAIL:-}
     ports:
       - "3000:3000"
       - "6080:6080"   # noVNC for browser login management

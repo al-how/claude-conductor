@@ -13,7 +13,7 @@ import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
 import { CronScheduler } from './cron/scheduler.js';
-import { registerMcpServer } from './mcp/register.js';
+import { registerMcpServer, registerGoogleWorkspaceMcp } from './mcp/register.js';
 
 export async function main() {
     const logger = createLogger({
@@ -33,6 +33,13 @@ export async function main() {
         registerMcpServer(logger);
     } catch (err) {
         logger.warn({ err }, 'Failed to register MCP server — continuing without it');
+    }
+
+    // Register Google Workspace MCP (Gmail, Calendar, Drive, etc.)
+    try {
+        registerGoogleWorkspaceMcp(config.google_workspace, logger);
+    } catch (err) {
+        logger.warn({ err }, 'Failed to register Google Workspace MCP — continuing without it');
     }
 
     // Initialize DB

@@ -31,6 +31,12 @@ queue:
   max_concurrent: 1
   timeout_seconds: 300
 
+# Google Workspace MCP (Gmail, Calendar, Drive, Docs, etc.)
+# google_workspace:
+#   enabled: true
+#   tool_tier: core        # core | extended | complete
+#   read_only: false       # restrict to read-only Gmail/Drive scopes
+
 browser:
   enabled: false
   # user_data_dir: /data/browser-profile  # persistent login sessions

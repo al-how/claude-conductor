@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Logger } from 'pino';
+import type { GoogleWorkspaceConfig } from '../config/schema.js';
 
 const CLAUDE_CONFIG_PATH = '/home/claude/.claude.json';
 
@@ -65,4 +66,62 @@ export function registerMcpServer(logger: Logger): void {
     // Write back, preserving all other config
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
     logger.info({ configPath }, 'MCP research server registered in Claude config');
+}
+
+/**
+ * Register (or remove) the Google Workspace MCP server in Claude Code's user-scope config.
+ * Idempotent — safe to call every startup.
+ */
+export function registerGoogleWorkspaceMcp(wsConfig: GoogleWorkspaceConfig, logger: Logger): void {
+    const configPath = CLAUDE_CONFIG_PATH;
+    const configDir = dirname(configPath);
+
+    if (!existsSync(configDir)) {
+        logger.info({ configDir }, 'Claude config directory not found — skipping Google Workspace MCP registration');
+        return;
+    }
+
+    let config: ClaudeConfig = {};
+    if (existsSync(configPath)) {
+        try {
+            const raw = readFileSync(configPath, 'utf-8');
+            config = JSON.parse(raw) as ClaudeConfig;
+        } catch (err) {
+            logger.warn({ err, configPath }, 'Failed to parse existing .claude.json — will create new');
+        }
+    }
+
+    if (!config.mcpServers) {
+        config.mcpServers = {};
+    }
+
+    if (!wsConfig.enabled) {
+        if (config.mcpServers['google-workspace']) {
+            delete config.mcpServers['google-workspace'];
+            writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+            logger.info('Google Workspace MCP disabled — removed entry from Claude config');
+        }
+        return;
+    }
+
+    const args = ['--tool-tier', wsConfig.tool_tier, '--single-user'];
+    if (wsConfig.read_only) {
+        args.push('--read-only');
+    }
+
+    const env: Record<string, string> = {};
+    if (process.env.GOOGLE_OAUTH_CLIENT_ID) env.GOOGLE_OAUTH_CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    if (process.env.GOOGLE_OAUTH_CLIENT_SECRET) env.GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    if (process.env.USER_GOOGLE_EMAIL) env.USER_GOOGLE_EMAIL = process.env.USER_GOOGLE_EMAIL;
+    env.XDG_CONFIG_HOME = wsConfig.token_dir;
+
+    config.mcpServers['google-workspace'] = {
+        type: 'stdio',
+        command: 'workspace-mcp',
+        args,
+        env,
+    };
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    logger.info({ configPath, toolTier: wsConfig.tool_tier, readOnly: wsConfig.read_only }, 'Google Workspace MCP server registered in Claude config');
 }

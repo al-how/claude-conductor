@@ -11,3 +11,4 @@ config.local.yaml
 settings.local.json
 ntfy_hook.ps1
 data/
+google-workspace-tokens/

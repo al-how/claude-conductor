@@ -24,7 +24,7 @@ This guide walks you through integrating the [taylorwilsdon/google_workspace_mcp
    - Go to **Google Auth platform** > **Branding** (in the left sidebar)
    - If prompted, click **Get Started**
    - Enter app name: `Claude Conductor` and your support email, click **Next**
-   - Under **Audience**, select **External**, click **Next**
+   - Under **Audience**, select External, click **Next**
    - Enter your developer contact email, click **Next**
    - Agree to the policy and click **Create**
 5. Create OAuth 2.0 credentials:
@@ -44,9 +44,9 @@ This guide walks you through integrating the [taylorwilsdon/google_workspace_mcp
 
 ## Step 2: Generate and Store OAuth Tokens
 
-The `workspace-mcp` server needs authorization tokens. You'll generate these on your host machine and copy them into the project.
+The `workspace-mcp` server needs authorization tokens. You generate these on your **Windows/Mac/Linux desktop** (not Unraid — it's headless and has no browser), then copy them to the project directory where Docker can mount them.
 
-### On Your Host Machine
+### On Your Desktop Machine (Windows/Mac/Linux)
 
 1. Install workspace-mcp:
    ```bash
@@ -55,6 +55,12 @@ The `workspace-mcp` server needs authorization tokens. You'll generate these on 
 
 2. Run the server to trigger OAuth authorization:
    ```bash
+   # Windows (PowerShell)
+   $env:GOOGLE_OAUTH_CLIENT_ID="<your-client-id>"
+   $env:GOOGLE_OAUTH_CLIENT_SECRET="<your-client-secret>"
+   workspace-mcp --single-user
+
+   # Mac/Linux
    export GOOGLE_OAUTH_CLIENT_ID="<your-client-id>"
    export GOOGLE_OAUTH_CLIENT_SECRET="<your-client-secret>"
    workspace-mcp --single-user

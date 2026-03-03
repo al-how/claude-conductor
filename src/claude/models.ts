@@ -78,6 +78,10 @@ export function resolveExecutionTarget(params: ResolveParams): ExecutionTarget {
         }
 
         // Validate against allowlist (always enforced)
+        if (ollamaConfig.allowed_models.length === 0) {
+            throw new Error('Ollama allowed_models list is empty in config.yaml. You must list models you want to allow.');
+        }
+
         if (!ollamaConfig.allowed_models.includes(resolvedModel)) {
             throw new Error(`Model '${resolvedModel}' is not in the Ollama allowed_models list`);
         }
@@ -106,6 +110,10 @@ export function resolveExecutionTarget(params: ResolveParams): ExecutionTarget {
         }
 
         // Fail-fast allowlist check
+        if (openRouterConfig.allowed_models.length === 0) {
+            throw new Error('OpenRouter allowed_models list is empty in config.yaml. You must list models you want to allow.');
+        }
+
         if (!openRouterConfig.allowed_models.includes(resolvedModel)) {
             throw new Error(`Model '${resolvedModel}' is not in the OpenRouter allowed_models list`);
         }

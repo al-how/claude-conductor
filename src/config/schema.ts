@@ -58,14 +58,14 @@ const BrowserConfigSchema = z.object({
 const OllamaConfigSchema = z.object({
     base_url: z.string().url(),
     default_model: z.string().optional(),
-    allowed_models: z.array(z.string()).min(1, 'At least one allowed model is required for Ollama')
+    allowed_models: z.array(z.string()).default([])
 });
 
 const OpenRouterConfigSchema = z.object({
     api_key: z.string().min(1, 'OpenRouter API key is required'),
     base_url: z.string().url().default('https://openrouter.ai/api'),
     default_model: z.string().optional(),
-    allowed_models: z.array(z.string()).min(1, 'At least one allowed model is required for OpenRouter')
+    allowed_models: z.array(z.string()).default([])
 });
 
 const GoogleWorkspaceConfigSchema = z.object({

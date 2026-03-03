@@ -144,12 +144,14 @@ export class TelegramBot {
                 return;
             }
 
-            // Set sticky provider
+            // Set sticky provider and clear sticky model to avoid cross-provider model conflicts
+            // (e.g. switching from Claude "sonnet" to OpenRouter with a strict allowlist).
             this.stickyProvider = providerArg as 'claude' | 'openrouter' | 'ollama';
+            this.stickyModel = undefined;
             if (chatId) {
-                (this.db as any)?.setChatSettings?.(chatId, { provider: this.stickyProvider });
+                (this.db as any)?.setChatSettings?.(chatId, { provider: this.stickyProvider, model: null });
             }
-            await ctx.reply(`Provider set to: ${this.stickyProvider}`);
+            await ctx.reply(`Provider set to: ${this.stickyProvider} (model reset to provider default)`);
         });
 
         this.bot.command('model', async (ctx) => {
@@ -354,10 +356,17 @@ export class TelegramBot {
         const effectiveStickyProvider = chatSettings?.provider || this.stickyProvider;
 
         // Resolve the full execution target (provider, model, env vars)
+        const effectiveModelInput =
+            modelOverride !== undefined
+                ? modelOverride
+                : providerOverride !== undefined
+                    ? undefined
+                    : effectiveStickyModel || undefined;
+
         let target;
         try {
             target = resolveExecutionTarget({
-                model: modelOverride || effectiveStickyModel || undefined,
+                model: effectiveModelInput,
                 provider: providerOverride || effectiveStickyProvider || this.globalProvider || undefined,
                 globalModel: this.globalModel,
                 ollamaConfig: this.ollamaConfig,

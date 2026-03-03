@@ -303,6 +303,105 @@ describe('TelegramBot', () => {
 
         expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('/model'));
     });
+
+    it('/provider openrouter should clear sticky model and use openrouter default', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined),
+            getChatSettings: vi.fn().mockReturnValue(undefined),
+            setChatSettings: vi.fn()
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            openRouterConfig: {
+                api_key: 'sk-or-test',
+                base_url: 'https://openrouter.ai/api',
+                default_model: 'qwen/qwen3-coder',
+                allowed_models: ['qwen/qwen3-coder']
+            }
+        });
+
+        const modelHandler = getCommandHandler('model')!;
+        await modelHandler({ message: { text: '/model sonnet' }, reply: vi.fn() });
+
+        const providerHandler = getCommandHandler('provider')!;
+        await providerHandler({
+            message: { text: '/provider openrouter' },
+            chat: { id: 100 },
+            reply: vi.fn()
+        });
+
+        const textHandler = getMessageHandler()!;
+        await textHandler({
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        });
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                model: 'qwen/qwen3-coder',
+                providerEnv: expect.objectContaining({
+                    ANTHROPIC_BASE_URL: 'https://openrouter.ai/api'
+                })
+            })
+        );
+    });
+
+    it('/provider openrouter <prompt> should ignore sticky model for one-off override', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined),
+            getChatSettings: vi.fn().mockReturnValue(undefined),
+            setChatSettings: vi.fn()
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any,
+            openRouterConfig: {
+                api_key: 'sk-or-test',
+                base_url: 'https://openrouter.ai/api',
+                default_model: 'qwen/qwen3-coder',
+                allowed_models: ['qwen/qwen3-coder']
+            }
+        });
+
+        const modelHandler = getCommandHandler('model')!;
+        await modelHandler({ message: { text: '/model sonnet' }, reply: vi.fn() });
+
+        const providerHandler = getCommandHandler('provider')!;
+        await providerHandler({
+            from: { id: 123 },
+            message: { text: '/provider openrouter summarize this', message_id: 2 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        });
+
+        expect(enqueueSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                model: 'qwen/qwen3-coder',
+                providerEnv: expect.objectContaining({
+                    ANTHROPIC_BASE_URL: 'https://openrouter.ai/api'
+                })
+            })
+        );
+    });
 });
 
 describe('TelegramBot streaming', () => {

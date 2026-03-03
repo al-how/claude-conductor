@@ -28,6 +28,7 @@ services:
       # GitHub token for gh CLI — allows Claude to create issues, PRs, etc.
       # Requires repo scope (or public_repo for public repos only)
       - GH_TOKEN=${GH_TOKEN:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       # Google Workspace MCP (Gmail, Calendar, Drive, etc.)
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}

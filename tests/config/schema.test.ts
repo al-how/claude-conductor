@@ -197,11 +197,11 @@ describe('ConfigSchema', () => {
         }
     });
 
-    it('should reject openrouter config with empty allowed_models', () => {
+    it('should accept openrouter config with empty allowed_models (defaults to [])', () => {
         const result = ConfigSchema.safeParse({
             openrouter: { api_key: 'sk-or-test', allowed_models: [] }
         });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
     });
 
     it('should reject openrouter config missing api_key', () => {
@@ -221,11 +221,11 @@ describe('ConfigSchema', () => {
         expect(result.success).toBe(true);
     });
 
-    it('should reject ollama config with empty allowed_models', () => {
+    it('should accept ollama config with empty allowed_models (defaults to [])', () => {
         const result = ConfigSchema.safeParse({
             ollama: { base_url: 'http://localhost:11434', allowed_models: [] }
         });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
     });
 
     it('should accept cron job with provider field', () => {

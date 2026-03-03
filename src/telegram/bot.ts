@@ -387,6 +387,7 @@ export class TelegramBot {
         let lastEditAt = 0;
         let flushTimer: ReturnType<typeof setTimeout> | undefined;
         let lastFlushedContent = '';
+        let lastToolResult = '';
         const throttleMs = 1000;
 
         const ensureStreamMessage = async () => {
@@ -410,6 +411,12 @@ export class TelegramBot {
         };
 
         const onStreamEvent = this.streamingEnabled ? async (event: StreamEvent) => {
+            // Capture tool result content as fallback for models that complete without text
+            if (event.type === 'tool_result') {
+                lastToolResult = String(event.data.content ?? '');
+                return;
+            }
+
             let chunk: string | undefined;
 
             if (event.type === 'text_delta') {
@@ -477,8 +484,15 @@ export class TelegramBot {
 
                 // Response handling
                 let responseText = extractResponseText(result);
-                if (!responseText || responseText.trim().length === 0) {
-                    responseText = '(empty response)';
+                // Fallback for models that complete tool-use without generating text
+                if (!responseText || responseText.trim().length === 0 || responseText.startsWith('Claude finished without a response')) {
+                    if (streamBuffer.trim()) {
+                        responseText = streamBuffer.trim();
+                    } else if (lastToolResult.trim()) {
+                        responseText = lastToolResult.slice(0, 3000);
+                    } else {
+                        responseText = '(empty response)';
+                    }
                 }
 
                 if (this.db) {

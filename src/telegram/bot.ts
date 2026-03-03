@@ -3,8 +3,9 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml, extractScreenshotPaths } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
-import { resolveModel, isKnownAlias } from '../claude/models.js';
+import { resolveExecutionTarget, isKnownAlias } from '../claude/models.js';
 import type { ClaudeResult, StreamEvent } from '../claude/invoke.js';
+import type { OllamaConfig, OpenRouterConfig } from '../config/schema.js';
 import type { Logger } from 'pino';
 import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager } from '../db/index.js';
@@ -17,6 +18,9 @@ export interface TelegramBotConfig {
     db?: DatabaseManager;
     logger?: Logger;
     globalModel?: string;
+    globalProvider?: 'claude' | 'openrouter' | 'ollama';
+    openRouterConfig?: OpenRouterConfig;
+    ollamaConfig?: OllamaConfig;
     streamingEnabled?: boolean;
     showToolEvents?: boolean;
 }
@@ -39,7 +43,11 @@ export class TelegramBot {
     private db?: DatabaseManager;
     private workingDir?: string;
     private stickyModel: string | undefined;
+    private stickyProvider: 'claude' | 'openrouter' | 'ollama' | undefined;
     private globalModel: string | undefined;
+    private globalProvider: 'claude' | 'openrouter' | 'ollama' | undefined;
+    private openRouterConfig: OpenRouterConfig | undefined;
+    private ollamaConfig: OllamaConfig | undefined;
     private streamingEnabled: boolean;
     private showToolEvents: boolean;
 
@@ -50,6 +58,9 @@ export class TelegramBot {
         this.db = config.db;
         this.workingDir = config.workingDir;
         this.globalModel = config.globalModel;
+        this.globalProvider = config.globalProvider;
+        this.openRouterConfig = config.openRouterConfig;
+        this.ollamaConfig = config.ollamaConfig;
         this.streamingEnabled = config.streamingEnabled ?? true;
         this.showToolEvents = config.showToolEvents ?? true;
 
@@ -92,14 +103,63 @@ export class TelegramBot {
 
     private setupHandlers() {
         this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Conductor!'));
-        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model'));
+        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model, /provider'));
+
+        this.bot.command('provider', async (ctx) => {
+            const text = ctx.message?.text || '';
+            const args = text.replace(/^\/provider\s*/, '').trim();
+            const chatId = ctx.chat?.id;
+
+            if (!args) {
+                // Query current sticky provider
+                const chatSettings = chatId ? (this.db as any)?.getChatSettings?.(chatId) : undefined;
+                const current = chatSettings?.provider || this.stickyProvider || this.globalProvider || 'claude (default)';
+                await ctx.reply(`Current provider: ${current}`);
+                return;
+            }
+
+            const parts = args.split(/\s+/);
+            const providerArg = parts[0].toLowerCase() as 'claude' | 'openrouter' | 'ollama' | 'default' | 'reset';
+
+            if (providerArg === 'default' || providerArg === 'reset') {
+                this.stickyProvider = undefined;
+                this.stickyModel = undefined;
+                if (chatId) {
+                    (this.db as any)?.setChatSettings?.(chatId, { provider: null, model: null });
+                }
+                await ctx.reply('Provider reset to default.');
+                return;
+            }
+
+            const validProviders = ['claude', 'openrouter', 'ollama'];
+            if (!validProviders.includes(providerArg)) {
+                await ctx.reply(`Unknown provider: ${providerArg}. Use: claude, openrouter, ollama`);
+                return;
+            }
+
+            // One-off override: /provider <provider> <prompt>
+            if (parts.length > 1) {
+                const prompt = parts.slice(1).join(' ');
+                await this.handleUserMessage(ctx, prompt, undefined, undefined, providerArg as 'claude' | 'openrouter' | 'ollama');
+                return;
+            }
+
+            // Set sticky provider
+            this.stickyProvider = providerArg as 'claude' | 'openrouter' | 'ollama';
+            if (chatId) {
+                (this.db as any)?.setChatSettings?.(chatId, { provider: this.stickyProvider });
+            }
+            await ctx.reply(`Provider set to: ${this.stickyProvider}`);
+        });
 
         this.bot.command('model', async (ctx) => {
             const text = ctx.message?.text || '';
             const args = text.replace(/^\/model\s*/, '').trim();
+            const chatId = ctx.chat?.id;
 
             if (!args) {
-                const current = this.stickyModel || this.globalModel || 'default (CLI default)';
+                const chatSettings = chatId ? (this.db as any)?.getChatSettings?.(chatId) : undefined;
+                const current = chatSettings?.model || this.stickyModel || this.globalModel || 'default (CLI default)';
                 await ctx.reply(`Current model: ${current}`);
                 return;
             }
@@ -109,18 +169,51 @@ export class TelegramBot {
 
             if (modelArg === 'default' || modelArg === 'reset') {
                 this.stickyModel = undefined;
+                if (chatId) {
+                    (this.db as any)?.setChatSettings?.(chatId, { model: null });
+                }
                 await ctx.reply('Model reset to default.');
                 return;
             }
 
-            // Per-message override: /model <known-alias> <prompt>
-            if (parts.length > 1 && isKnownAlias(modelArg)) {
-                const prompt = parts.slice(1).join(' ');
-                await this.handleUserMessage(ctx, prompt, undefined, modelArg);
-                return;
+            // Determine effective provider for validation
+            const chatSettings = chatId ? (this.db as any)?.getChatSettings?.(chatId) : undefined;
+            const effectiveProvider = chatSettings?.provider || this.stickyProvider || this.globalProvider || 'claude';
+
+            // Provider-aware validation for non-Claude providers
+            if (effectiveProvider === 'openrouter') {
+                if (!this.openRouterConfig) {
+                    await ctx.reply('OpenRouter is not configured. Set openrouter config in config.yaml.');
+                    return;
+                }
+                if (!this.openRouterConfig.allowed_models.includes(modelArg) && !this.openRouterConfig.allowed_models.includes(parts[0])) {
+                    const allowed = this.openRouterConfig.allowed_models.join(', ');
+                    await ctx.reply(`Model '${modelArg}' is not in the OpenRouter allowed_models list.\nAllowed: ${allowed}`);
+                    return;
+                }
+            } else if (effectiveProvider === 'ollama') {
+                if (!this.ollamaConfig) {
+                    await ctx.reply('Ollama is not configured. Set ollama config in config.yaml.');
+                    return;
+                }
+                if (!this.ollamaConfig.allowed_models.includes(modelArg) && !this.ollamaConfig.allowed_models.includes(parts[0])) {
+                    const allowed = this.ollamaConfig.allowed_models.join(', ');
+                    await ctx.reply(`Model '${modelArg}' is not in the Ollama allowed_models list.\nAllowed: ${allowed}`);
+                    return;
+                }
+            } else {
+                // Claude provider: per-message override for known aliases
+                if (parts.length > 1 && isKnownAlias(modelArg)) {
+                    const prompt = parts.slice(1).join(' ');
+                    await this.handleUserMessage(ctx, prompt, undefined, modelArg);
+                    return;
+                }
             }
 
             this.stickyModel = modelArg;
+            if (chatId) {
+                (this.db as any)?.setChatSettings?.(chatId, { model: modelArg });
+            }
             await ctx.reply(`Model set to: ${modelArg}`);
         });
 
@@ -129,6 +222,7 @@ export class TelegramBot {
                 try {
                     this.db.clearConversation(ctx.chat!.id);
                     this.db.clearSessionId(ctx.chat!.id);
+                    // NOTE: /clear does NOT reset chat_settings (sticky provider/model persists)
                     await ctx.reply('Conversation context cleared.');
                 } catch (e) {
                     this.logger?.error({ err: e }, 'Failed to clear conversation');
@@ -185,7 +279,7 @@ export class TelegramBot {
         });
     }
 
-    private async handleUserMessage(ctx: Context, text: string, filePaths?: string[], modelOverride?: string) {
+    private async handleUserMessage(ctx: Context, text: string, filePaths?: string[], modelOverride?: string, providerOverride?: 'claude' | 'openrouter' | 'ollama') {
         // Extract reply context if replying to a message
         let replyContext = '';
         if (ctx.message?.reply_to_message) {
@@ -234,10 +328,10 @@ export class TelegramBot {
             }
         }
 
-        this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id, modelOverride);
+        this.enqueueClaudeTask(ctx, prompt, ctx.message!.message_id, modelOverride, providerOverride);
     }
 
-    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number, modelOverride?: string) {
+    private enqueueClaudeTask(ctx: Context, prompt: string, messageId: number, modelOverride?: string, providerOverride?: 'claude' | 'openrouter' | 'ollama') {
         const taskId = `tg-${messageId}`;
 
         // Start typing indicator
@@ -254,7 +348,28 @@ export class TelegramBot {
         const chatId = ctx.chat!.id;
         const hasSession = !!this.db?.getSessionId(chatId);
 
-        const model = resolveModel(modelOverride || this.stickyModel || this.globalModel || undefined)?.model;
+        // Load sticky settings from DB (if available), fall back to in-memory
+        const chatSettings = (this.db as any)?.getChatSettings?.(chatId);
+        const effectiveStickyModel = chatSettings?.model || this.stickyModel;
+        const effectiveStickyProvider = chatSettings?.provider || this.stickyProvider;
+
+        // Resolve the full execution target (provider, model, env vars)
+        let target;
+        try {
+            target = resolveExecutionTarget({
+                model: modelOverride || effectiveStickyModel || undefined,
+                provider: providerOverride || effectiveStickyProvider || this.globalProvider || undefined,
+                globalModel: this.globalModel,
+                ollamaConfig: this.ollamaConfig,
+                openRouterConfig: this.openRouterConfig,
+            });
+        } catch (err) {
+            clearInterval(typingInterval);
+            void ctx.reply(`Configuration error: ${(err as Error).message}`);
+            return;
+        }
+
+        const { model, providerEnv } = target;
 
         // Streaming state
         let streamBuffer = '';
@@ -330,6 +445,7 @@ export class TelegramBot {
             includePartialMessages: this.streamingEnabled,
             ...(hasSession ? { continue: true } : {}),
             model,
+            providerEnv,
             onStreamEvent,
             onComplete: async (result: ClaudeResult) => {
                 // Persist the session ID so we know to use --continue next time

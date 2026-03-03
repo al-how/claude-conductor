@@ -76,6 +76,9 @@ export async function main() {
             db,
             dispatcher,
             globalModel: config.model,
+            globalProvider: config.provider,
+            openRouterConfig: config.openrouter,
+            ollamaConfig: config.ollama,
             streamingEnabled: config.telegram.streaming_enabled,
             showToolEvents: config.telegram.show_tool_events
         });
@@ -89,14 +92,16 @@ export async function main() {
         dispatcher,
         vaultPath: config.vault_path,
         logger,
-        db: db!, // DB is initialized above, checking logic might need improvement but following flow
+        db: db!,
         sendTelegram: bot
             ? (text) => bot!.sendMessage(config.telegram!.allowed_users[0], text)
             : undefined,
         globalModel: config.model,
+        globalProvider: config.provider,
         apiConfig: config.api ? { anthropicApiKey: config.api.anthropic_api_key, defaultModel: config.api.default_model } : undefined,
         chatId: config.telegram?.allowed_users[0],
-        ollamaBaseUrl: config.ollama?.base_url,
+        ollamaConfig: config.ollama,
+        openRouterConfig: config.openrouter,
     });
     scheduler.start();
 
@@ -112,7 +117,7 @@ export async function main() {
     // Health check
     registerHealthRoute(app);
     // Cron routes
-    registerCronRoutes(app, db!, scheduler, !!config.api, config.ollama?.base_url);
+    registerCronRoutes(app, db!, scheduler, !!config.api, config.ollama, config.openrouter);
     // Settings routes
     registerSettingsRoutes(app, config);
     // Skills routes
@@ -134,7 +139,12 @@ curl -s -X POST http://localhost:3000/api/cron \\
   -H "Content-Type: application/json" \\
   -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "output": "telegram", "model": "sonnet"}'
 
-Model options: opus, sonnet, haiku (Claude shorthand), ollama:<model-name> (local Ollama), or full model IDs. Optional — defaults to global config model.
+Model options: opus, sonnet, haiku (Claude shorthand), or full model IDs. Optional — defaults to global config model.
+
+Provider options: claude (default), openrouter, ollama. Example with OpenRouter:
+  -d '{"name": "task-name", "schedule": "0 9 * * *", "prompt": "...", "provider": "openrouter", "model": "qwen/qwen3-coder", "execution_mode": "cli"}'
+
+Note: execution_mode 'api' only supports provider 'claude'. Use 'cli' for openrouter/ollama.
 
 ## List all scheduled tasks
 curl -s http://localhost:3000/api/cron

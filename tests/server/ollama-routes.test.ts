@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fastify, type FastifyInstance } from 'fastify';
 import { registerCronRoutes } from '../../src/server/cron-routes.js';
+import type { OllamaConfig } from '../../src/config/schema.js';
+
+const ollamaConfig: OllamaConfig = {
+    base_url: 'http://192.168.1.100:11434',
+    allowed_models: ['qwen3-coder', 'llama3'],
+};
 
 describe('GET /api/ollama/models', () => {
     let app: FastifyInstance;
@@ -29,7 +35,7 @@ describe('GET /api/ollama/models', () => {
         });
         vi.stubGlobal('fetch', mockFetch);
 
-        registerCronRoutes(app, {} as any, {} as any, false, 'http://192.168.1.100:11434');
+        registerCronRoutes(app, {} as any, {} as any, false, ollamaConfig);
         await app.ready();
         const res = await app.inject({ method: 'GET', url: '/api/ollama/models' });
         expect(res.statusCode).toBe(200);
@@ -44,7 +50,7 @@ describe('GET /api/ollama/models', () => {
     it('should return available: false when ollama is unreachable', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
 
-        registerCronRoutes(app, {} as any, {} as any, false, 'http://192.168.1.100:11434');
+        registerCronRoutes(app, {} as any, {} as any, false, ollamaConfig);
         await app.ready();
         const res = await app.inject({ method: 'GET', url: '/api/ollama/models' });
         expect(res.statusCode).toBe(200);

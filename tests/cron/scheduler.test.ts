@@ -291,4 +291,102 @@ describe('CronScheduler', () => {
         scheduler.stop();
         expect(scheduler.getStatus()).toHaveLength(0);
     });
+
+    it('should pass openrouter providerEnv to dispatcher', async () => {
+        const openRouterScheduler = new CronScheduler({
+            dispatcher: mockDispatcher,
+            vaultPath: '/tmp/vault',
+            logger: mockLogger,
+            db: mockDb,
+            openRouterConfig: {
+                api_key: 'sk-or-test',
+                base_url: 'https://openrouter.ai/api',
+                allowed_models: ['qwen/qwen3-coder'],
+            },
+        });
+
+        const job = {
+            id: 1, name: 'or-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            provider: 'openrouter' as const,
+            model: 'qwen/qwen3-coder',
+            created_at: '', updated_at: ''
+        };
+
+        await (openRouterScheduler as any).executeJob(job);
+
+        expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
+            expect.objectContaining({
+                providerEnv: expect.objectContaining({
+                    ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
+                    ANTHROPIC_AUTH_TOKEN: 'sk-or-test',
+                })
+            })
+        );
+        openRouterScheduler.stop();
+    });
+
+    it('should log error and not dispatch when openrouter model not in allowlist', async () => {
+        const openRouterScheduler = new CronScheduler({
+            dispatcher: mockDispatcher,
+            vaultPath: '/tmp/vault',
+            logger: mockLogger,
+            db: mockDb,
+            openRouterConfig: {
+                api_key: 'sk-or-test',
+                base_url: 'https://openrouter.ai/api',
+                allowed_models: ['qwen/qwen3-coder'],
+            },
+        });
+
+        const job = {
+            id: 1, name: 'or-bad-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            provider: 'openrouter' as const,
+            model: 'not-in-allowlist',
+            created_at: '', updated_at: ''
+        };
+
+        await (openRouterScheduler as any).executeJob(job);
+
+        expect(mockDispatcher.enqueue).not.toHaveBeenCalled();
+        expect(mockDb.logCronExecution).toHaveBeenCalledWith(
+            expect.objectContaining({ exit_code: -1 })
+        );
+        openRouterScheduler.stop();
+    });
+
+    it('should pass ollama providerEnv to dispatcher', async () => {
+        const ollamaScheduler = new CronScheduler({
+            dispatcher: mockDispatcher,
+            vaultPath: '/tmp/vault',
+            logger: mockLogger,
+            db: mockDb,
+            ollamaConfig: {
+                base_url: 'http://192.168.1.100:11434',
+                allowed_models: ['qwen3-coder'],
+            },
+        });
+
+        const job = {
+            id: 1, name: 'ollama-job', schedule: '* * * * *',
+            prompt: 'test', output: 'log', enabled: 1,
+            provider: 'ollama' as const,
+            model: 'qwen3-coder',
+            created_at: '', updated_at: ''
+        };
+
+        await (ollamaScheduler as any).executeJob(job);
+
+        expect(mockDispatcher.enqueue).toHaveBeenCalledWith(
+            expect.objectContaining({
+                model: 'qwen3-coder',
+                providerEnv: expect.objectContaining({
+                    ANTHROPIC_BASE_URL: 'http://192.168.1.100:11434',
+                    ANTHROPIC_AUTH_TOKEN: 'ollama',
+                })
+            })
+        );
+        ollamaScheduler.stop();
+    });
 });

@@ -170,4 +170,78 @@ describe('ConfigSchema', () => {
             expect(result.data.queue.priority.webhook).toBe(3);
         }
     });
+
+    it('should accept global provider field', () => {
+        const result = ConfigSchema.safeParse({ provider: 'openrouter' });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.provider).toBe('openrouter');
+        }
+    });
+
+    it('should reject invalid global provider', () => {
+        const result = ConfigSchema.safeParse({ provider: 'unknown' });
+        expect(result.success).toBe(false);
+    });
+
+    it('should accept valid openrouter config', () => {
+        const result = ConfigSchema.safeParse({
+            openrouter: {
+                api_key: 'sk-or-test',
+                allowed_models: ['qwen/qwen3-coder']
+            }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.openrouter?.base_url).toBe('https://openrouter.ai/api');
+        }
+    });
+
+    it('should reject openrouter config with empty allowed_models', () => {
+        const result = ConfigSchema.safeParse({
+            openrouter: { api_key: 'sk-or-test', allowed_models: [] }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('should reject openrouter config missing api_key', () => {
+        const result = ConfigSchema.safeParse({
+            openrouter: { allowed_models: ['qwen/qwen3-coder'] }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('should accept valid ollama config with allowed_models', () => {
+        const result = ConfigSchema.safeParse({
+            ollama: {
+                base_url: 'http://localhost:11434',
+                allowed_models: ['qwen3-coder']
+            }
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it('should reject ollama config with empty allowed_models', () => {
+        const result = ConfigSchema.safeParse({
+            ollama: { base_url: 'http://localhost:11434', allowed_models: [] }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('should accept cron job with provider field', () => {
+        const result = CronJobSchema.safeParse({
+            name: 'test', schedule: '0 7 * * *', prompt: 'do stuff', provider: 'openrouter'
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.provider).toBe('openrouter');
+        }
+    });
+
+    it('should reject cron job with invalid provider', () => {
+        const result = CronJobSchema.safeParse({
+            name: 'test', schedule: '0 7 * * *', prompt: 'do stuff', provider: 'invalid'
+        });
+        expect(result.success).toBe(false);
+    });
 });

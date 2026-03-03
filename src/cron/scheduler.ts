@@ -6,7 +6,8 @@ import type { Dispatcher } from '../dispatcher/index.js';
 import type { DatabaseManager, CronJobRow } from '../db/index.js';
 import { extractResponseText } from '../claude/invoke.js';
 import { invokeApi } from '../claude/invoke-api.js';
-import { resolveModel } from '../claude/models.js';
+import { resolveExecutionTarget } from '../claude/models.js';
+import type { OllamaConfig, OpenRouterConfig } from '../config/schema.js';
 import { ExecutionLogCollector, formatExecutionLog, writeExecutionLog, pruneOldLogs } from '../claude/execution-log.js';
 
 export interface ApiConfig {
@@ -21,9 +22,11 @@ export interface CronSchedulerConfig {
     db: DatabaseManager;
     sendTelegram?: (text: string) => Promise<void>;
     globalModel?: string;
+    globalProvider?: 'claude' | 'openrouter' | 'ollama';
     apiConfig?: ApiConfig;
     chatId?: number;
-    ollamaBaseUrl?: string;
+    ollamaConfig?: OllamaConfig;
+    openRouterConfig?: OpenRouterConfig;
 }
 
 export interface JobStatus {
@@ -215,10 +218,22 @@ export class CronScheduler {
             return;
         }
 
+        // API mode only supports Claude provider
+        const effectiveProvider = job.provider ?? this.config.globalProvider ?? 'claude';
+        if (effectiveProvider !== 'claude') {
+            this.logger.error(
+                { name: job.name, provider: effectiveProvider },
+                'execution_mode: api is only supported with provider: claude. Use execution_mode: cli for OpenRouter/Ollama.'
+            );
+            return;
+        }
+
         const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
-        const resolved = resolveModel(job.model ?? this.config.apiConfig.defaultModel ?? this.config.globalModel ?? undefined);
-        const model = resolved?.model;
+        const model = resolveExecutionTarget({
+            model: job.model ?? this.config.apiConfig.defaultModel ?? undefined,
+            globalModel: this.config.globalModel,
+        }).model;
 
         try {
             const result = await invokeApi({
@@ -286,7 +301,30 @@ export class CronScheduler {
         // Inject history context into the prompt for dedup
         const historyContext = await this.getHistoryContext(job.name);
         const enrichedPrompt = job.prompt + historyContext;
-        const resolved = resolveModel(job.model ?? this.config.globalModel ?? undefined);
+
+        // Resolve provider/model — fail fast before spawning
+        let target;
+        try {
+            target = resolveExecutionTarget({
+                model: job.model ?? undefined,
+                provider: job.provider ?? this.config.globalProvider ?? undefined,
+                globalModel: this.config.globalModel,
+                ollamaConfig: this.config.ollamaConfig,
+                openRouterConfig: this.config.openRouterConfig,
+            });
+        } catch (err) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            this.logger.error({ err: error, name: job.name }, 'Failed to resolve execution target for cron job');
+            this.config.db.logCronExecution({
+                job_name: job.name,
+                started_at: startTime,
+                finished_at: new Date().toISOString(),
+                exit_code: -1,
+                timed_out: 0,
+                error: error.message,
+            });
+            return;
+        }
 
         const collector = new ExecutionLogCollector();
 
@@ -299,8 +337,8 @@ export class CronScheduler {
             noSessionPersistence: true,
             allowedTools: job.allowed_tools ? job.allowed_tools.split(',').map(t => t.trim()) : ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
             maxTurns: job.max_turns || undefined,
-            model: resolved?.model,
-            providerEnv: resolved?.provider === 'ollama' ? this.getOllamaEnv() : undefined,
+            model: target.model,
+            providerEnv: target.providerEnv,
             outputFormat: 'stream-json',
             onStreamEvent: collector.collect,
             onComplete: async (result) => {
@@ -361,14 +399,6 @@ export class CronScheduler {
                 }
             }
         });
-    }
-
-    private getOllamaEnv(): Record<string, string> {
-        return {
-            ANTHROPIC_BASE_URL: this.config.ollamaBaseUrl || 'http://localhost:11434',
-            ANTHROPIC_AUTH_TOKEN: 'ollama',
-            ANTHROPIC_API_KEY: '',
-        };
     }
 
     private routeOutput(job: CronJobRow, responseText: string): void {

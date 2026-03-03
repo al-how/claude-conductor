@@ -85,6 +85,13 @@ export class DatabaseManager {
           response_preview TEXT,
           error TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS chat_settings (
+          chat_id INTEGER PRIMARY KEY,
+          provider TEXT DEFAULT NULL,
+          model TEXT DEFAULT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
       `;
 
             this.db.exec(schema);
@@ -117,6 +124,10 @@ export class DatabaseManager {
         if (!cols.some(c => c.name === 'allowed_tools')) {
             this.db.exec('ALTER TABLE cron_jobs ADD COLUMN allowed_tools TEXT DEFAULT NULL');
             this.logger?.info('Migration: added allowed_tools column to cron_jobs');
+        }
+        if (!cols.some(c => c.name === 'provider')) {
+            this.db.exec('ALTER TABLE cron_jobs ADD COLUMN provider TEXT DEFAULT NULL');
+            this.logger?.info('Migration: added provider column to cron_jobs');
         }
 
         // Add cost_usd column to cron_executions if it doesn't exist
@@ -188,11 +199,11 @@ export class DatabaseManager {
     }
 
     // Cron Jobs
-    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null; execution_mode?: string; allowed_tools?: string | null }): CronJobRow {
+    public createCronJob(job: { name: string; schedule: string; prompt: string; output?: string; enabled?: number; timezone?: string; max_turns?: number | null; model?: string | null; provider?: string | null; execution_mode?: string; allowed_tools?: string | null }): CronJobRow {
         const stmt = this.db.prepare(
-            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model, execution_mode, allowed_tools) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO cron_jobs (name, schedule, prompt, output, enabled, timezone, max_turns, model, provider, execution_mode, allowed_tools) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null, job.execution_mode ?? 'cli', job.allowed_tools ?? null);
+        stmt.run(job.name, job.schedule, job.prompt, job.output || 'telegram', job.enabled ?? 1, job.timezone || 'America/Chicago', job.max_turns ?? null, job.model ?? null, job.provider ?? null, job.execution_mode ?? 'cli', job.allowed_tools ?? null);
         return this.getCronJob(job.name)!;
     }
 
@@ -220,6 +231,7 @@ export class DatabaseManager {
         if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
         if (updates.max_turns !== undefined) { fields.push('max_turns = ?'); values.push(updates.max_turns); }
         if (updates.model !== undefined) { fields.push('model = ?'); values.push(updates.model); }
+        if (updates.provider !== undefined) { fields.push('provider = ?'); values.push(updates.provider); }
         if (updates.execution_mode !== undefined) { fields.push('execution_mode = ?'); values.push(updates.execution_mode); }
         if (updates.allowed_tools !== undefined) { fields.push('allowed_tools = ?'); values.push(updates.allowed_tools); }
 
@@ -259,6 +271,39 @@ export class DatabaseManager {
         );
     }
 
+    // Chat Settings (sticky provider/model per Telegram chat)
+    public getChatSettings(chatId: number): ChatSettings | undefined {
+        const stmt = this.db.prepare('SELECT * FROM chat_settings WHERE chat_id = ?');
+        return stmt.get(chatId) as ChatSettings | undefined;
+    }
+
+    public setChatSettings(chatId: number, settings: { provider?: string | null; model?: string | null }): void {
+        const fields: string[] = ['chat_id', 'updated_at'];
+        const values: (number | string | null)[] = [chatId, new Date().toISOString()];
+
+        if (settings.provider !== undefined) { fields.push('provider'); values.push(settings.provider ?? null); }
+        if (settings.model !== undefined) { fields.push('model'); values.push(settings.model ?? null); }
+
+        const placeholders = fields.map(() => '?').join(', ');
+        const updateClause = fields
+            .filter(f => f !== 'chat_id')
+            .map(f => `${f} = excluded.${f}`)
+            .join(', ');
+
+        const stmt = this.db.prepare(
+            `INSERT INTO chat_settings (${fields.join(', ')}) VALUES (${placeholders})
+             ON CONFLICT(chat_id) DO UPDATE SET ${updateClause}`
+        );
+        stmt.run(...values);
+    }
+
+    public clearChatSettings(chatId: number): void {
+        const stmt = this.db.prepare(
+            "UPDATE chat_settings SET provider = NULL, model = NULL, updated_at = CURRENT_TIMESTAMP WHERE chat_id = ?"
+        );
+        stmt.run(chatId);
+    }
+
     public getRecentCronExecutions(jobName?: string, limit: number = 20): CronExecution[] {
         let sql = 'SELECT * FROM cron_executions';
         const params: (string | number)[] = [];
@@ -283,9 +328,17 @@ export interface CronJobRow {
     timezone: string;
     max_turns: number | null;
     model: string | null;
+    provider: 'claude' | 'openrouter' | 'ollama' | null;
     execution_mode: 'api' | 'cli';
     allowed_tools: string | null;
     created_at: string;
+    updated_at: string;
+}
+
+export interface ChatSettings {
+    chat_id: number;
+    provider: 'claude' | 'openrouter' | 'ollama' | null;
+    model: string | null;
     updated_at: string;
 }
 

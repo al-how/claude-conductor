@@ -20,10 +20,34 @@ cron:
 # Shorthand: opus, sonnet, haiku — or use full model IDs
 # model: sonnet
 
+# Provider selection (optional)
+# Default is 'claude' (uses OAuth via mounted .credentials.json)
+# Options: claude | openrouter | ollama
+# provider: claude
+
 # API mode — required for execution_mode: 'api' cron jobs
 # Use env var substitution to avoid storing the key in plain text
 # api:
 #   anthropic_api_key: "${ANTHROPIC_API_KEY}"
+
+# OpenRouter — route Claude CLI to OpenRouter's API
+# Enables access to 300+ models via the same Claude CLI runtime
+# openrouter:
+#   api_key: "${OPENROUTER_API_KEY}"
+#   base_url: "https://openrouter.ai/api"  # default, can omit
+#   default_model: "qwen/qwen3-coder"      # used when no model specified
+#   allowed_models:
+#     - "qwen/qwen3-coder"
+#     - "google/gemini-2.0-flash-001"
+#     - "meta-llama/llama-4-scout"
+
+# Ollama — run local models via Ollama
+# ollama:
+#   base_url: "http://192.168.1.100:11434"
+#   default_model: "qwen3-coder"   # used when no model specified
+#   allowed_models:
+#     - "qwen3-coder"
+#     - "llama3.3"
 
 webhooks: []
 

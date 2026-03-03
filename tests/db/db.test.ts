@@ -171,4 +171,65 @@ describe('DatabaseManager', () => {
         expect(context2).toHaveLength(1);
         expect(context2[0].content).toBe('User 2');
     });
+
+    it('should create a cron job with provider field', () => {
+        const job = dbManager.createCronJob({
+            name: 'provider-test',
+            schedule: '0 9 * * *',
+            prompt: 'test',
+            provider: 'openrouter'
+        });
+        expect(job.provider).toBe('openrouter');
+    });
+
+    it('should default cron job provider to null', () => {
+        const job = dbManager.createCronJob({
+            name: 'no-provider-test',
+            schedule: '0 9 * * *',
+            prompt: 'test'
+        });
+        expect(job.provider).toBeNull();
+    });
+
+    it('should update cron job provider field', () => {
+        dbManager.createCronJob({ name: 'update-provider', schedule: '*', prompt: 'test' });
+        const updated = dbManager.updateCronJob('update-provider', { provider: 'ollama' });
+        expect(updated?.provider).toBe('ollama');
+    });
+
+    it('should store and retrieve chat_settings', () => {
+        dbManager.setChatSettings(12345, { provider: 'openrouter', model: 'qwen/qwen3-coder' });
+        const settings = dbManager.getChatSettings(12345);
+        expect(settings).toBeDefined();
+        expect(settings?.provider).toBe('openrouter');
+        expect(settings?.model).toBe('qwen/qwen3-coder');
+    });
+
+    it('should return undefined for missing chat_settings', () => {
+        const settings = dbManager.getChatSettings(99999);
+        expect(settings).toBeUndefined();
+    });
+
+    it('should overwrite chat_settings on repeated sets', () => {
+        dbManager.setChatSettings(111, { provider: 'openrouter', model: 'model-a' });
+        dbManager.setChatSettings(111, { provider: 'ollama', model: 'llama3' });
+        const settings = dbManager.getChatSettings(111);
+        expect(settings?.provider).toBe('ollama');
+        expect(settings?.model).toBe('llama3');
+    });
+
+    it('should clear chat_settings (nulls provider and model, row remains)', () => {
+        dbManager.setChatSettings(222, { provider: 'openrouter', model: 'qwen/qwen3-coder' });
+        dbManager.clearChatSettings(222);
+        const settings = dbManager.getChatSettings(222);
+        expect(settings?.provider).toBeNull();
+        expect(settings?.model).toBeNull();
+    });
+
+    it('should store chat_settings with only model set', () => {
+        dbManager.setChatSettings(333, { model: 'sonnet' });
+        const settings = dbManager.getChatSettings(333);
+        expect(settings?.model).toBe('sonnet');
+        expect(settings?.provider).toBeNull();
+    });
 });

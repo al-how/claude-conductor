@@ -245,6 +245,18 @@ export async function invokeClaude(options: ClaudeInvokeOptions): Promise<Claude
                     }
                 }
 
+                // Capture and surface API/provider error events (e.g. OpenRouter 401/429/model-not-found)
+                if (eventType === 'error') {
+                    const errObj = parsed.error as Record<string, unknown> | undefined;
+                    const msg = errObj?.message ?? errObj?.type ?? JSON.stringify(parsed);
+                    logger?.error({ event: 'api_error', error: parsed.error }, `Provider error: ${msg}`);
+                    wrappedStreamEvent?.({
+                        timestamp: new Date().toISOString(),
+                        type: 'error',
+                        data: { error: parsed.error, message: msg }
+                    });
+                }
+
                 // Capture session_id from any event (first one wins)
                 if (!sessionId && parsed.session_id) {
                     sessionId = parsed.session_id as string;

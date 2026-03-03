@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import fastify from 'fastify';
+import fastify, { type FastifyInstance } from 'fastify';
 import { registerCronRoutes } from '../../src/server/cron-routes.js';
 import type { DatabaseManager } from '../../src/db/index.js';
 import type { CronScheduler } from '../../src/cron/scheduler.js';
+import type { OllamaConfig, OpenRouterConfig } from '../../src/config/schema.js';
 
 describe('Cron API Routes', () => {
     const app = fastify();
@@ -231,5 +232,144 @@ describe('Cron API Routes', () => {
         expect(mockDb.updateCronJob).toHaveBeenCalledWith('tz-patch', expect.objectContaining({
             timezone: 'Europe/London'
         }));
+    });
+});
+
+describe('Cron API Routes — provider validation', () => {
+    let appWithProviders: FastifyInstance;
+
+    const openRouterConfig: OpenRouterConfig = {
+        api_key: 'sk-test',
+        base_url: 'https://openrouter.ai/api',
+        allowed_models: ['qwen/qwen3-coder', 'google/gemini-2.0-flash'],
+        default_model: 'qwen/qwen3-coder',
+    };
+
+    const ollamaConfig: OllamaConfig = {
+        base_url: 'http://localhost:11434',
+        allowed_models: ['llama3', 'qwen3-coder'],
+    };
+
+    const mockDb2 = {
+        listCronJobs: vi.fn(),
+        getCronJob: vi.fn(),
+        createCronJob: vi.fn(),
+        updateCronJob: vi.fn(),
+        deleteCronJob: vi.fn(),
+    } as unknown as DatabaseManager;
+
+    const mockScheduler2 = {
+        addJob: vi.fn(),
+        removeJob: vi.fn(),
+    } as unknown as CronScheduler;
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        appWithProviders = fastify();
+        registerCronRoutes(appWithProviders, mockDb2, mockScheduler2, true, ollamaConfig, openRouterConfig);
+        await appWithProviders.ready();
+    });
+
+    it('POST /api/cron should pass provider to createCronJob', async () => {
+        (mockDb2.getCronJob as any).mockReturnValue(undefined);
+        (mockDb2.createCronJob as any).mockReturnValue({
+            name: 'or-job', schedule: '0 9 * * *', prompt: 'test',
+            provider: 'openrouter', id: 1, enabled: 1
+        });
+
+        const response = await appWithProviders.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload: {
+                name: 'or-job',
+                schedule: '0 9 * * *',
+                prompt: 'test',
+                provider: 'openrouter',
+            }
+        });
+
+        expect(response.statusCode).toBe(201);
+        expect(mockDb2.createCronJob).toHaveBeenCalledWith(
+            expect.objectContaining({ provider: 'openrouter' })
+        );
+    });
+
+    it('POST /api/cron should reject api mode with non-Claude provider', async () => {
+        (mockDb2.getCronJob as any).mockReturnValue(undefined);
+
+        const response = await appWithProviders.inject({
+            method: 'POST',
+            url: '/api/cron',
+            payload: {
+                name: 'or-api-job',
+                schedule: '0 9 * * *',
+                prompt: 'test',
+                execution_mode: 'api',
+                provider: 'openrouter',
+            }
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error).toContain("execution_mode 'api' only supports provider 'claude'");
+    });
+
+    it('PATCH /api/cron/:name should reject adding openrouter provider to an api-mode job', async () => {
+        (mockDb2.getCronJob as any).mockReturnValue({
+            name: 'api-job',
+            execution_mode: 'api',
+            provider: null,
+        });
+        (mockDb2.updateCronJob as any).mockReturnValue(undefined);
+
+        const response = await appWithProviders.inject({
+            method: 'PATCH',
+            url: '/api/cron/api-job',
+            payload: { provider: 'openrouter' }
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error).toContain("execution_mode 'api' only supports provider 'claude'");
+    });
+
+    it('PATCH /api/cron/:name should reject switching cli+openrouter job to api mode', async () => {
+        (mockDb2.getCronJob as any).mockReturnValue({
+            name: 'or-cli-job',
+            execution_mode: 'cli',
+            provider: 'openrouter',
+        });
+
+        const response = await appWithProviders.inject({
+            method: 'PATCH',
+            url: '/api/cron/or-cli-job',
+            payload: { execution_mode: 'api' }
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error).toContain("execution_mode 'api' only supports provider 'claude'");
+    });
+
+    it('GET /api/models should return provider-grouped metadata', async () => {
+        const response = await appWithProviders.inject({ method: 'GET', url: '/api/models' });
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.claude).toBeInstanceOf(Array);
+        expect(body.openrouter).toBeDefined();
+        expect(body.openrouter.models).toContain('qwen/qwen3-coder');
+        expect(body.openrouter.default_model).toBe('qwen/qwen3-coder');
+        expect(body.ollama).toBeDefined();
+        expect(body.ollama.models).toContain('llama3');
+    });
+
+    it('GET /api/models should return null for unconfigured providers', async () => {
+        const bareApp = fastify();
+        registerCronRoutes(bareApp, mockDb2, mockScheduler2, false);
+        await bareApp.ready();
+
+        const response = await bareApp.inject({ method: 'GET', url: '/api/models' });
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.openrouter).toBeNull();
+        expect(body.ollama).toBeNull();
     });
 });

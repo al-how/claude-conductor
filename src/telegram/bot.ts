@@ -386,6 +386,7 @@ export class TelegramBot {
         const streamMessageIds: number[] = [];
         let lastEditAt = 0;
         let flushTimer: ReturnType<typeof setTimeout> | undefined;
+        let lastFlushedContent = '';
         const throttleMs = 1000;
 
         const ensureStreamMessage = async () => {
@@ -398,8 +399,11 @@ export class TelegramBot {
 
         const flushStream = async () => {
             if (!streamMessageId) return;
+            const content = streamBuffer.slice(0, 4096);
+            if (content === lastFlushedContent) return;
             try {
-                await ctx.api.editMessageText(ctx.chat!.id, streamMessageId, streamBuffer.slice(0, 4096));
+                await ctx.api.editMessageText(ctx.chat!.id, streamMessageId, content);
+                lastFlushedContent = content;
             } catch (e) {
                 this.logger?.warn({ err: e }, 'Failed to edit stream message');
             }
@@ -427,6 +431,7 @@ export class TelegramBot {
                 await flushStream();
                 streamBuffer = streamBuffer.slice(4096);
                 streamMessageId = undefined;
+                lastFlushedContent = '';
                 await ensureStreamMessage();
             }
 

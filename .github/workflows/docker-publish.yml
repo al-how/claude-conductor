@@ -34,6 +34,7 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
+        continue-on-error: true
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -42,13 +43,30 @@ jobs:
             type=sha,prefix=
             type=ref,event=tag
 
+      - name: Extract metadata for Docker (retry)
+        id: meta_retry
+        if: steps.meta.outcome == 'failure'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=
+            type=ref,event=tag
+
+      - name: Ensure metadata was generated
+        if: steps.meta.outputs.tags == '' && steps.meta_retry.outputs.tags == ''
+        run: |
+          echo "Failed to generate Docker metadata after retry."
+          exit 1
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags != '' && steps.meta.outputs.tags || steps.meta_retry.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels != '' && steps.meta.outputs.labels || steps.meta_retry.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
             VERSION=${{ steps.pkg.outputs.version }}

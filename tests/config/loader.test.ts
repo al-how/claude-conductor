@@ -76,9 +76,11 @@ telegram:
 vault_path: /vault
 ollama:
   base_url: "http://192.168.1.100:11434"
+  allowed_models:
+    - qwen3-coder
 `);
         const config = loadConfig(path);
-        expect(config.ollama).toEqual({ base_url: 'http://192.168.1.100:11434' });
+        expect(config.ollama).toEqual({ base_url: 'http://192.168.1.100:11434', allowed_models: ['qwen3-coder'] });
     });
 
     it('should accept config without ollama section', () => {

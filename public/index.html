@@ -87,26 +87,36 @@
               </select>
             </label>
             <label>
+              Provider
+              <select x-model="newJob.provider" @change="newJob.model = ''">
+                <option value="">(default)</option>
+                <option value="claude">Claude</option>
+                <option value="openrouter" :disabled="openrouterModels.length === 0">OpenRouter</option>
+                <option value="ollama" :disabled="ollamaAllowlist.length === 0">Ollama</option>
+              </select>
+            </label>
+            <label>
               Model
               <select x-model="newJob.model">
                 <option value="">(default)</option>
-                <optgroup label="Claude">
+                <template x-if="!newJob.provider || newJob.provider === 'claude'">
                   <template x-for="m in claudeModels" :key="m.alias">
                     <option :value="m.alias" x-text="m.alias"></option>
                   </template>
-                </optgroup>
-                <template x-if="ollamaAvailable">
-                  <optgroup label="Ollama">
-                    <template x-for="m in ollamaModels" :key="m.name">
-                      <option :value="'ollama:' + m.name" x-text="m.name"></option>
-                    </template>
-                  </optgroup>
+                </template>
+                <template x-if="newJob.provider === 'openrouter'">
+                  <template x-for="m in openrouterModels" :key="m">
+                    <option :value="m" x-text="m"></option>
+                  </template>
+                </template>
+                <template x-if="newJob.provider === 'ollama'">
+                  <template x-for="m in ollamaAllowlist" :key="m">
+                    <option :value="m" x-text="m"></option>
+                  </template>
                 </template>
                 <option value="__custom__">Custom...</option>
               </select>
-              <input x-show="newJob.model === '__custom__'" type="text" x-model="newJob.customModel" placeholder="ollama:model-name or claude-model-id" style="margin-top:0.25rem">
-              <small x-show="newJob.model === '__custom__'" style="color:#888">Prefix Ollama models with <code>ollama:</code> (e.g. <code>ollama:qwen3-vl:8b</code>)</small>
-              <small x-show="ollamaError" style="color:#c66" x-text="'⚠ Ollama: ' + ollamaError"></small>
+              <input x-show="newJob.model === '__custom__'" type="text" x-model="newJob.customModel" placeholder="model-id" style="margin-top:0.25rem">
             </label>
             <label>
               Timezone
@@ -116,7 +126,7 @@
               Execution Mode
               <select x-model="newJob.execution_mode">
                 <option value="cli">CLI</option>
-                <option value="api">API</option>
+                <option value="api" :disabled="newJob.provider && newJob.provider !== 'claude'">API (Claude only)</option>
               </select>
             </label>
             <label>
@@ -142,6 +152,7 @@
               <th>Schedule</th>
               <th>Mode</th>
               <th>Enabled</th>
+              <th>Provider</th>
               <th>Model</th>
               <th>Actions</th>
             </tr>
@@ -174,7 +185,8 @@
                     <span class="slider"></span>
                   </label>
                 </td>
-                <td x-text="modelDisplay(job.model)"></td>
+                <td x-text="job.provider || '—'"></td>
+                <td x-text="modelDisplay(job.model, job.provider)"></td>
                 <td class="actions">
                   <template x-if="editingJob !== job.name">
                     <div class="actions">
@@ -196,7 +208,7 @@
             <template x-for="job in jobs" :key="'edit-' + job.name">
               <template x-if="editingJob === job.name">
                 <tr>
-                  <td colspan="6">
+                  <td colspan="7">
                     <div class="form-grid" style="margin:0.5rem 0">
                       <label>
                         Prompt
@@ -211,25 +223,36 @@
                         </select>
                       </label>
                       <label>
+                        Provider
+                        <select x-model="editForm.provider" style="margin:0" @change="editForm.model = ''">
+                          <option value="">(default)</option>
+                          <option value="claude">Claude</option>
+                          <option value="openrouter" :disabled="openrouterModels.length === 0">OpenRouter</option>
+                          <option value="ollama" :disabled="ollamaAllowlist.length === 0">Ollama</option>
+                        </select>
+                      </label>
+                      <label>
                         Model
                         <select x-model="editForm.model" style="margin:0">
                           <option value="">(default)</option>
-                          <optgroup label="Claude">
+                          <template x-if="!editForm.provider || editForm.provider === 'claude'">
                             <template x-for="m in claudeModels" :key="m.alias">
                               <option :value="m.alias" x-text="m.alias"></option>
                             </template>
-                          </optgroup>
-                          <template x-if="ollamaAvailable">
-                            <optgroup label="Ollama">
-                              <template x-for="m in ollamaModels" :key="m.name">
-                                <option :value="'ollama:' + m.name" x-text="m.name"></option>
-                              </template>
-                            </optgroup>
+                          </template>
+                          <template x-if="editForm.provider === 'openrouter'">
+                            <template x-for="m in openrouterModels" :key="m">
+                              <option :value="m" x-text="m"></option>
+                            </template>
+                          </template>
+                          <template x-if="editForm.provider === 'ollama'">
+                            <template x-for="m in ollamaAllowlist" :key="m">
+                              <option :value="m" x-text="m"></option>
+                            </template>
                           </template>
                           <option value="__custom__">Custom...</option>
                         </select>
-                        <input x-show="editForm.model === '__custom__'" type="text" x-model="editForm.customModel" placeholder="ollama:model-name or claude-model-id" style="margin-top:0.25rem">
-                        <small x-show="editForm.model === '__custom__'" style="color:#888">Prefix Ollama models with <code>ollama:</code></small>
+                        <input x-show="editForm.model === '__custom__'" type="text" x-model="editForm.customModel" placeholder="model-id" style="margin-top:0.25rem">
                       </label>
                       <label>
                         Timezone
@@ -243,7 +266,7 @@
                         Execution Mode
                         <select x-model="editForm.execution_mode" style="margin:0">
                           <option value="cli">CLI</option>
-                          <option value="api">API</option>
+                          <option value="api" :disabled="editForm.provider && editForm.provider !== 'claude'">API (Claude only)</option>
                         </select>
                       </label>
                       <label class="full-width">
@@ -260,7 +283,7 @@
             <template x-for="job in jobs" :key="'hist-' + job.name">
               <template x-if="historyOpen === job.name && history.length > 0">
                 <tr class="history-row">
-                  <td colspan="6">
+                  <td colspan="7">
                     <table style="margin:0">
                       <thead>
                         <tr>
@@ -397,7 +420,7 @@
 
         // Cron
         jobs: [],
-        newJob: { name: '', schedule: '', prompt: '', output: 'telegram', model: '', customModel: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null, allowed_tools: '' },
+        newJob: { name: '', schedule: '', prompt: '', output: 'telegram', provider: '', model: '', customModel: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null, allowed_tools: '' },
         editingJob: null,
         editForm: {},
         historyOpen: null,
@@ -412,6 +435,8 @@
         ollamaModels: [],
         ollamaAvailable: false,
         ollamaError: null,
+        openrouterModels: [],
+        ollamaAllowlist: [],
 
         // Skills
         skills: [],
@@ -488,9 +513,10 @@
           return d.toLocaleString();
         },
 
-        modelDisplay(model) {
-          if (!model) return '—';
+        modelDisplay(model, provider) {
+          if (!model) return provider && provider !== 'claude' ? `(default) [${provider}]` : '—';
           if (model.startsWith('ollama:')) return model.slice(7) + ' (ollama)';
+          if (provider && provider !== 'claude') return `${model} [${provider}]`;
           return model;
         },
 
@@ -502,6 +528,8 @@
             ]);
             const claudeData = await claudeRes.json();
             this.claudeModels = claudeData.claude || [];
+            this.openrouterModels = claudeData.openrouter?.models || [];
+            this.ollamaAllowlist = claudeData.ollama?.models || [];
             const ollamaData = await ollamaRes.json();
             this.ollamaModels = ollamaData.models || [];
             this.ollamaAvailable = ollamaData.available || false;
@@ -522,13 +550,14 @@
           const body = { ...this.newJob };
           if (body.model === '__custom__') body.model = this.newJob.customModel || undefined;
           if (!body.model) delete body.model;
+          if (!body.provider) delete body.provider;
           delete body.customModel;
           if (!body.max_turns) delete body.max_turns;
           if (!body.allowed_tools) delete body.allowed_tools;
           const res = await fetch('/api/cron', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           if (res.ok) {
             this.showFlash('Job created');
-            this.newJob = { name: '', schedule: '', prompt: '', output: 'telegram', model: '', customModel: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null, allowed_tools: '' };
+            this.newJob = { name: '', schedule: '', prompt: '', output: 'telegram', provider: '', model: '', customModel: '', timezone: 'America/Chicago', execution_mode: 'cli', max_turns: null, allowed_tools: '' };
             await this.loadJobs();
           } else {
             const err = await res.json();
@@ -560,6 +589,7 @@
             schedule: job.schedule,
             prompt: job.prompt,
             output: job.output,
+            provider: job.provider || '',
             model: job.model || '',
             customModel: '',
             timezone: job.timezone,
@@ -573,6 +603,7 @@
           const body = { ...this.editForm };
           if (body.model === '__custom__') body.model = this.editForm.customModel || undefined;
           if (!body.model) body.model = undefined;
+          if (!body.provider) body.provider = undefined;
           delete body.customModel;
           if (!body.max_turns) body.max_turns = null;
           if (!body.allowed_tools) delete body.allowed_tools;

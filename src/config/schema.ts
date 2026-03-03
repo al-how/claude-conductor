@@ -18,6 +18,7 @@ export const CronJobSchema = z.object({
     timezone: z.string().default('America/Chicago'),
     max_turns: z.number().int().min(1).max(200).nullable().optional(),
     model: z.string().optional(),
+    provider: z.enum(['claude', 'openrouter', 'ollama']).optional(),
     execution_mode: z.enum(['api', 'cli']).default('cli'),
     allowed_tools: z.string().optional()
 });
@@ -55,7 +56,16 @@ const BrowserConfigSchema = z.object({
 }).default({});
 
 const OllamaConfigSchema = z.object({
-    base_url: z.string().url()
+    base_url: z.string().url(),
+    default_model: z.string().optional(),
+    allowed_models: z.array(z.string()).min(1, 'At least one allowed model is required for Ollama')
+});
+
+const OpenRouterConfigSchema = z.object({
+    api_key: z.string().min(1, 'OpenRouter API key is required'),
+    base_url: z.string().url().default('https://openrouter.ai/api'),
+    default_model: z.string().optional(),
+    allowed_models: z.array(z.string()).min(1, 'At least one allowed model is required for OpenRouter')
 });
 
 const GoogleWorkspaceConfigSchema = z.object({
@@ -68,9 +78,11 @@ const GoogleWorkspaceConfigSchema = z.object({
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
+    provider: z.enum(['claude', 'openrouter', 'ollama']).optional(),
     telegram: TelegramConfigSchema.optional(),
     api: ApiConfigSchema.optional(),
     ollama: OllamaConfigSchema.optional(),
+    openrouter: OpenRouterConfigSchema.optional(),
     // cron: z.array(CronJobSchema).default([]), // Removed in favor of DB-driven cron
     webhooks: z.array(WebhookRouteSchema).default([]),
     queue: QueueConfigSchema,
@@ -85,4 +97,5 @@ export type WebhookRoute = z.infer<typeof WebhookRouteSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type OllamaConfig = z.infer<typeof OllamaConfigSchema>;
+export type OpenRouterConfig = z.infer<typeof OpenRouterConfigSchema>;
 export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;

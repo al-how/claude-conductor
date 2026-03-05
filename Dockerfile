@@ -61,6 +61,7 @@ RUN chmod +x /app/scripts/*.sh
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip install workspace-mcp
+RUN npm install -g n8n-mcp
 
 ARG GIT_SHA=unknown
 ARG VERSION=0.0.0

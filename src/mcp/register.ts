@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Logger } from 'pino';
-import type { GoogleWorkspaceConfig } from '../config/schema.js';
+import type { GoogleWorkspaceConfig, N8nConfig } from '../config/schema.js';
 
 const CLAUDE_CONFIG_PATH = '/home/claude/.claude.json';
 
@@ -124,4 +124,60 @@ export function registerGoogleWorkspaceMcp(wsConfig: GoogleWorkspaceConfig, logg
 
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
     logger.info({ configPath, toolTier: wsConfig.tool_tier, readOnly: wsConfig.read_only }, 'Google Workspace MCP server registered in Claude config');
+}
+
+/**
+ * Register (or remove) the n8n MCP server in Claude Code's user-scope config.
+ * Idempotent — safe to call every startup.
+ */
+export function registerN8nMcp(n8nConfig: N8nConfig, logger: Logger): void {
+    const configPath = CLAUDE_CONFIG_PATH;
+    const configDir = dirname(configPath);
+
+    if (!existsSync(configDir)) {
+        logger.info({ configDir }, 'Claude config directory not found — skipping n8n MCP registration');
+        return;
+    }
+
+    let config: ClaudeConfig = {};
+    if (existsSync(configPath)) {
+        try {
+            const raw = readFileSync(configPath, 'utf-8');
+            config = JSON.parse(raw) as ClaudeConfig;
+        } catch (err) {
+            logger.warn({ err, configPath }, 'Failed to parse existing .claude.json — will create new');
+        }
+    }
+
+    if (!config.mcpServers) {
+        config.mcpServers = {};
+    }
+
+    if (!n8nConfig.enabled) {
+        if (config.mcpServers['n8n-mcp']) {
+            delete config.mcpServers['n8n-mcp'];
+            writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+            logger.info('n8n MCP disabled — removed entry from Claude config');
+        }
+        return;
+    }
+
+    const env: Record<string, string> = {
+        MCP_MODE: 'stdio',
+        LOG_LEVEL: 'error',
+        DISABLE_CONSOLE_OUTPUT: 'true',
+        N8N_MCP_TELEMETRY_DISABLED: 'true',
+    };
+    if (n8nConfig.api_url) env.N8N_API_URL = n8nConfig.api_url;
+    if (n8nConfig.api_key) env.N8N_API_KEY = n8nConfig.api_key;
+
+    config.mcpServers['n8n-mcp'] = {
+        type: 'stdio',
+        command: 'n8n-mcp',
+        args: [],
+        env,
+    };
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    logger.info({ configPath, apiUrl: n8nConfig.api_url }, 'n8n MCP server registered in Claude config');
 }

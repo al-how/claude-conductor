@@ -75,6 +75,12 @@ const GoogleWorkspaceConfigSchema = z.object({
     token_dir: z.string().default('/data/google-workspace-tokens'),
 }).default({});
 
+const N8nConfigSchema = z.object({
+    enabled: z.boolean().default(false),
+    api_url: z.string().url().optional(),
+    api_key: z.string().optional(),
+}).default({});
+
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
@@ -87,7 +93,8 @@ export const ConfigSchema = z.object({
     webhooks: z.array(WebhookRouteSchema).default([]),
     queue: QueueConfigSchema,
     browser: BrowserConfigSchema,
-    google_workspace: GoogleWorkspaceConfigSchema
+    google_workspace: GoogleWorkspaceConfigSchema,
+    n8n: N8nConfigSchema
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -99,3 +106,4 @@ export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type OllamaConfig = z.infer<typeof OllamaConfigSchema>;
 export type OpenRouterConfig = z.infer<typeof OpenRouterConfigSchema>;
 export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;
+export type N8nConfig = z.infer<typeof N8nConfigSchema>;

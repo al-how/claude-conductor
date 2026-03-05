@@ -13,7 +13,7 @@ import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
 import { CronScheduler } from './cron/scheduler.js';
-import { registerMcpServer, registerGoogleWorkspaceMcp } from './mcp/register.js';
+import { registerMcpServer, registerGoogleWorkspaceMcp, registerN8nMcp } from './mcp/register.js';
 
 export async function main() {
     const logger = createLogger({
@@ -40,6 +40,13 @@ export async function main() {
         registerGoogleWorkspaceMcp(config.google_workspace, logger);
     } catch (err) {
         logger.warn({ err }, 'Failed to register Google Workspace MCP — continuing without it');
+    }
+
+    // Register n8n MCP (workflow automation)
+    try {
+        registerN8nMcp(config.n8n, logger);
+    } catch (err) {
+        logger.warn({ err }, 'Failed to register n8n MCP — continuing without it');
     }
 
     // Initialize DB

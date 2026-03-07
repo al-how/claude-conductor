@@ -65,3 +65,8 @@ browser:
   enabled: false
   # user_data_dir: /data/browser-profile  # persistent login sessions
   # vnc_port: 6080                         # noVNC port for manual login
+
+# Google Maps MCP (places search, geocoding, directions, distance)
+# google_maps:
+#   enabled: true
+#   api_key: "${GOOGLE_MAPS_API_KEY}"

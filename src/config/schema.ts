@@ -81,6 +81,11 @@ const N8nConfigSchema = z.object({
     api_key: z.string().optional(),
 }).default({});
 
+const GoogleMapsConfigSchema = z.object({
+    enabled: z.boolean().default(false),
+    api_key: z.string().min(1),
+});
+
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
@@ -94,7 +99,8 @@ export const ConfigSchema = z.object({
     queue: QueueConfigSchema,
     browser: BrowserConfigSchema,
     google_workspace: GoogleWorkspaceConfigSchema,
-    n8n: N8nConfigSchema
+    n8n: N8nConfigSchema,
+    google_maps: GoogleMapsConfigSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -107,3 +113,4 @@ export type OllamaConfig = z.infer<typeof OllamaConfigSchema>;
 export type OpenRouterConfig = z.infer<typeof OpenRouterConfigSchema>;
 export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;
 export type N8nConfig = z.infer<typeof N8nConfigSchema>;
+export type GoogleMapsConfig = z.infer<typeof GoogleMapsConfigSchema>;

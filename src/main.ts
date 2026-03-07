@@ -13,7 +13,7 @@ import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
 import { CronScheduler } from './cron/scheduler.js';
-import { registerMcpServer, registerGoogleWorkspaceMcp, registerN8nMcp } from './mcp/register.js';
+import { registerMcpServer, registerGoogleWorkspaceMcp, registerN8nMcp, registerGoogleMapsMcp } from './mcp/register.js';
 
 export async function main() {
     const logger = createLogger({
@@ -47,6 +47,15 @@ export async function main() {
         registerN8nMcp(config.n8n, logger);
     } catch (err) {
         logger.warn({ err }, 'Failed to register n8n MCP — continuing without it');
+    }
+
+    // Register Google Maps MCP (places, geocoding, directions)
+    if (config.google_maps) {
+        try {
+            registerGoogleMapsMcp(config.google_maps, logger);
+        } catch (err) {
+            logger.warn({ err }, 'Failed to register Google Maps MCP — continuing without it');
+        }
     }
 
     // Initialize DB

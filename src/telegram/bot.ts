@@ -50,6 +50,7 @@ export class TelegramBot {
     private ollamaConfig: OllamaConfig | undefined;
     private streamingEnabled: boolean;
     private showToolEvents: boolean;
+    private pendingLocations = new Map<number, string>();
 
     constructor(config: TelegramBotConfig) {
         this.allowedUsers = new Set(config.allowedUsers);
@@ -236,7 +237,13 @@ export class TelegramBot {
         });
 
         this.bot.on('message:text', async (ctx) => {
-            const text = ctx.message.text;
+            const chatId = ctx.chat.id;
+            const pending = this.pendingLocations.get(chatId);
+            let text = ctx.message.text;
+            if (pending) {
+                this.pendingLocations.delete(chatId);
+                text = `${pending}\n${text}`;
+            }
             this.logger?.info({ event: 'message_received', userId: ctx.from.id, text }, 'Received message');
             await this.handleUserMessage(ctx, text);
         });
@@ -282,16 +289,19 @@ export class TelegramBot {
 
         this.bot.on('message:location', async (ctx) => {
             const { latitude, longitude } = ctx.message.location;
-            const caption = ctx.message.caption ?? '';
-            const locationText = `[Location shared: latitude=${latitude}, longitude=${longitude}]${caption ? `\n${caption}` : ''}`;
-            await this.handleUserMessage(ctx, locationText);
+            const chatId = ctx.chat.id;
+            const locationText = `[Location shared: latitude=${latitude}, longitude=${longitude}]`;
+            this.pendingLocations.set(chatId, locationText);
+            await ctx.reply('📍 Location received. What would you like to do with it?');
         });
 
         this.bot.on('message:venue', async (ctx) => {
             const { location, title, address } = ctx.message.venue;
             const { latitude, longitude } = location;
+            const chatId = ctx.chat.id;
             const locationText = `[Location shared: "${title}" at ${address} (latitude=${latitude}, longitude=${longitude})]`;
-            await this.handleUserMessage(ctx, locationText);
+            this.pendingLocations.set(chatId, locationText);
+            await ctx.reply(`📍 Location received: "${title}" at ${address}. What would you like to do with it?`);
         });
     }
 

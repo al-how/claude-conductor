@@ -279,6 +279,20 @@ export class TelegramBot {
                 await ctx.reply('Failed to download the document.');
             }
         });
+
+        this.bot.on('message:location', async (ctx) => {
+            const { latitude, longitude } = ctx.message.location;
+            const caption = ctx.message.caption ?? '';
+            const locationText = `[Location shared: latitude=${latitude}, longitude=${longitude}]${caption ? `\n${caption}` : ''}`;
+            await this.handleUserMessage(ctx, locationText);
+        });
+
+        this.bot.on('message:venue', async (ctx) => {
+            const { location, title, address } = ctx.message.venue;
+            const { latitude, longitude } = location;
+            const locationText = `[Location shared: "${title}" at ${address} (latitude=${latitude}, longitude=${longitude})]`;
+            await this.handleUserMessage(ctx, locationText);
+        });
     }
 
     private async handleUserMessage(ctx: Context, text: string, filePaths?: string[], modelOverride?: string, providerOverride?: 'claude' | 'openrouter' | 'ollama') {

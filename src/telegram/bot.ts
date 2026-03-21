@@ -338,8 +338,10 @@ export class TelegramBot {
         }
 
         // Build prompt with conversation history for context
+        // Skip history injection when a session exists — --continue already provides full context
         let prompt = `${replyContext}${fileBlock}${text}`;
-        if (this.db) {
+        const hasSession = !!this.db?.getSessionId(ctx.chat!.id);
+        if (this.db && !hasSession) {
             try {
                 const history = this.db.getRecentContext(ctx.chat!.id, 20);
                 const prior = history.slice(0, -1);

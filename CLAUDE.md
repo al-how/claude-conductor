@@ -37,7 +37,7 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 ## Build & Test
 
 - `npm run dev` — run locally with tsx (no build step)
-- `npx tsc --noEmit` — type-check only
+- `npx tsc --noEmit` — type-check only (requires TypeScript installed; run inside container or via `npm run build`)
 - `npx tsc` — full build (emits to `dist/`)
 - `npx vitest run` — run all tests
 - `createMockChild` in invoke tests pushes all lines in one tick — readline may not process all lines before `close`. Use one stream event per assertion or await between pushes.
@@ -46,7 +46,10 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 
 ```bash
 # Telegram (interactive, user-initiated)
-claude -p --continue --dangerously-skip-permissions --output-format stream-json
+# First message (no existing session): no session flags — Claude creates a new session
+claude -p --dangerously-skip-permissions --output-format stream-json
+# Subsequent messages (session UUID stored in DB):
+claude -p --session-id <uuid> --resume --dangerously-skip-permissions --output-format stream-json
 
 # Cron (scheduled, read-only default)
 claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format stream-json
@@ -58,9 +61,7 @@ claude -p --allowedTools <per-route-config> --output-format json --max-turns 25
 ANTHROPIC_BASE_URL=http://host:11434 ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY="" \
 claude -p --model qwen3-coder --no-session-persistence --allowedTools "Read,Glob,Grep" --output-format stream-json
 
-# Browser-enabled Telegram session
-claude -p --continue --dangerously-skip-permissions --output-format stream-json
-# (Playwright CLI is available via Bash tool — no extra flags needed)
+# Browser-enabled Telegram session (same session flags as above; Playwright available via Bash tool)
 ```
 
 Working directory for all invocations: `/vault` (mounted Obsidian vault).
@@ -70,9 +71,9 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 ## Claude Code CLI Session Flags
 
 - `--session-id` requires a **valid UUID** (not arbitrary strings like Telegram chat IDs)
-- `--session-id` + `--resume` or `--continue` **requires `--fork-session`** — but `--fork-session` creates a new session each time, so repeated use causes "already in use" errors
-- For session continuity, use `--continue` (without `--session-id`) — it continues the most recent persistent session
-- `--no-session-persistence` (used by cron) prevents those sessions from interfering with `--continue`
+- For Telegram session continuity, use `--session-id <uuid> --resume` — targets the specific stored session UUID, immune to terminal sessions hijacking `--continue`
+- `--continue` (no session-id) resumes the globally "most recent" session — avoid for Telegram; only used when no stored UUID exists (first message)
+- `--no-session-persistence` (used by cron) prevents those sessions from interfering with Telegram session tracking
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
 - `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`
 - Model resolution chain: per-task override > per-source config > global `config.yaml` model > CLI default
@@ -131,6 +132,11 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - **Container must be recreated (not just restarted) to pick up new images**: `docker stop && docker rm && docker compose pull && docker compose up -d`
 - Unraid compose project: `/boot/config/plugins/compose.manager/projects/claude-conductor/`
 
+## Git Authentication
+
+- `GH_TOKEN` env var is available in the container — use it when `git push` fails with auth errors
+- Inject it into the remote URL temporarily: `git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/al-how/claude-conductor"`, push, then restore: `git remote set-url origin https://github.com/al-how/claude-conductor`
+
 ## Git Worktrees
 
 - Worktrees at `.worktrees/<name>/` do not include `.github/` — create it manually if committing CI workflow changes from a feature branch
@@ -153,15 +159,6 @@ Default output format is `stream-json` (line-delimited JSON events). Key event t
 - **CLI** (default): Jobs go through the Dispatcher queue → spawns `claude -p` child process. Uses OAuth auth.
 - **API**: Jobs call `@anthropic-ai/claude-agent-sdk` `query()` directly, bypassing the Dispatcher. Uses `ANTHROPIC_API_KEY`. Requires `api` config in `config.yaml`.
 - `registerCronRoutes` takes an `apiEnabled` flag — rejects `execution_mode: 'api'` jobs at creation/update time if API config is absent.
-
-## Browser Automation
-
-- `@playwright/cli` installed globally — Claude uses `playwright-cli` commands via Bash tool
-- Persistent browser profile at `/data/browser-profile` preserves login sessions
-- noVNC at port 6080 for manual re-authentication when sessions expire
-- Login wall detection is prompt-driven: Claude reads page snapshots and recognizes login forms
-- Screenshots saved to `/data/screenshots/` and sent inline in Telegram responses
-- Form submission requires user confirmation in Telegram; auto-submits in cron jobs
 
 ## Design Constraints
 

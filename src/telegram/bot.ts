@@ -338,7 +338,7 @@ export class TelegramBot {
         }
 
         // Build prompt with conversation history for context
-        // Skip history injection when a session exists — --fork-session already provides full context
+        // Skip history injection when a session exists — --continue already provides full context
         let prompt = `${replyContext}${fileBlock}${text}`;
         const hasSession = !!this.db?.getSessionId(ctx.chat!.id);
         if (this.db && !hasSession) {
@@ -372,9 +372,9 @@ export class TelegramBot {
             }
         }, 5000);
 
-        // Check if this chat has an existing Claude Code session to resume
+        // Check if this chat has an existing Claude Code session to continue
         const chatId = ctx.chat!.id;
-        const existingSessionId = this.db?.getSessionId(chatId);
+        const hasSession = !!this.db?.getSessionId(chatId);
 
         // Load sticky settings from DB (if available), fall back to in-memory
         const chatSettings = (this.db as any)?.getChatSettings?.(chatId);
@@ -490,15 +490,12 @@ export class TelegramBot {
             logger: this.logger,
             dangerouslySkipPermissions: true,
             includePartialMessages: this.streamingEnabled,
-            // Target the specific Telegram session by UUID instead of --continue
-            // (which resumes the globally "most recent" session and gets hijacked
-            // by terminal Claude Code sessions).
-            ...(existingSessionId ? { sessionId: existingSessionId, resume: true } : {}),
+            ...(hasSession ? { continue: true } : {}),
             model,
             providerEnv,
             onStreamEvent,
             onComplete: async (result: ClaudeResult) => {
-                // Persist the session ID so subsequent messages target this specific session
+                // Persist the session ID so we know to use --continue next time
                 if (result.sessionId && this.db) {
                     try { this.db.saveSessionId(chatId, result.sessionId); }
                     catch (e) { this.logger?.error({ err: e }, 'Failed to save session ID'); }

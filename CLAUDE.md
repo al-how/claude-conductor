@@ -48,8 +48,8 @@ Single Node.js process (the harness) manages triggers and spawns Claude Code CLI
 # Telegram (interactive, user-initiated)
 # First message (no existing session): no session flags — Claude creates a new session
 claude -p --dangerously-skip-permissions --output-format stream-json
-# Subsequent messages (session UUID stored in DB):
-claude -p --session-id <uuid> --resume --dangerously-skip-permissions --output-format stream-json
+# Subsequent messages (existing session):
+claude -p --continue --dangerously-skip-permissions --output-format stream-json
 
 # Cron (scheduled, read-only default)
 claude -p --no-session-persistence --allowedTools "Read,Glob,Grep,WebSearch,WebFetch" --output-format stream-json
@@ -71,8 +71,8 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 ## Claude Code CLI Session Flags
 
 - `--session-id` requires a **valid UUID** (not arbitrary strings like Telegram chat IDs)
-- For Telegram session continuity, use `--session-id <uuid> --resume` — targets the specific stored session UUID, immune to terminal sessions hijacking `--continue`
-- `--continue` (no session-id) resumes the globally "most recent" session — avoid for Telegram; only used when no stored UUID exists (first message)
+- For Telegram session continuity, use `--continue` — resumes the globally "most recent" session, allowing CLI resumption via `claude --continue`
+- Session UUID is still saved to DB for tracking; `--continue` is used instead of `--session-id --resume` to keep the "most recent" pointer updated
 - `--no-session-persistence` (used by cron) prevents those sessions from interfering with Telegram session tracking
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
 - `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`

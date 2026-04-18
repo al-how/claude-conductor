@@ -96,7 +96,8 @@ export async function main() {
             openRouterConfig: config.openrouter,
             ollamaConfig: config.ollama,
             streamingEnabled: config.telegram.streaming_enabled,
-            showToolEvents: config.telegram.show_tool_events
+            showToolEvents: config.telegram.show_tool_events,
+            timeoutSeconds: config.telegram.timeout_seconds
         });
         // bot.start() begins long-polling and only resolves on stop() — don't await it
         bot.start().catch(err => logger.error({ err }, 'Telegram Bot polling error'));

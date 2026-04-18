@@ -23,6 +23,7 @@ export interface TelegramBotConfig {
     ollamaConfig?: OllamaConfig;
     streamingEnabled?: boolean;
     showToolEvents?: boolean;
+    timeoutSeconds?: number;
 }
 
 const TELEGRAM_FILES_DIR = resolve(process.env.TELEGRAM_FILES_DIR || '/data/telegram-files');
@@ -50,6 +51,7 @@ export class TelegramBot {
     private ollamaConfig: OllamaConfig | undefined;
     private streamingEnabled: boolean;
     private showToolEvents: boolean;
+    private timeoutSeconds: number | undefined;
     private pendingLocations = new Map<number, string>();
 
     constructor(config: TelegramBotConfig) {
@@ -64,6 +66,7 @@ export class TelegramBot {
         this.ollamaConfig = config.ollamaConfig;
         this.streamingEnabled = config.streamingEnabled ?? true;
         this.showToolEvents = config.showToolEvents ?? true;
+        this.timeoutSeconds = config.timeoutSeconds;
 
         if (!config.token) {
             this.logger?.error('Telegram bot token is missing in config');
@@ -491,6 +494,7 @@ export class TelegramBot {
             dangerouslySkipPermissions: true,
             includePartialMessages: this.streamingEnabled,
             ...(hasSession ? { continue: true } : {}),
+            ...(this.timeoutSeconds !== undefined ? { timeout: this.timeoutSeconds * 1000 } : {}),
             model,
             providerEnv,
             onStreamEvent,

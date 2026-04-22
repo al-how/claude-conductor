@@ -71,8 +71,11 @@ Working directory for all invocations: `/vault` (mounted Obsidian vault).
 ## Claude Code CLI Session Flags
 
 - `--session-id` requires a **valid UUID** (not arbitrary strings like Telegram chat IDs)
-- For Telegram session continuity, use `--continue` — resumes the globally "most recent" session, allowing CLI resumption via `claude --continue`
+- For Telegram session continuity, the bot uses `--continue` — resumes the globally "most recent" session within the bot's CWD (`/vault`) project namespace
 - Session UUID is still saved to DB for tracking; `--continue` is used instead of `--session-id --resume` to keep the "most recent" pointer updated
+- **To resume a Telegram session from the container CLI**, do NOT rely on `--continue` or the interactive `/resume` picker — headless (`-p`) sessions aren't always surfaced there. Use one of these deterministic paths instead:
+  - `docker exec -it claude-conductor claude-tg` — wrapper script that reads the newest session UUID from `/data/conductor.db` and runs `claude --resume <uuid>` at CWD `/vault`. Accepts an optional `chat_id` arg to target a specific chat's session.
+  - `/session` in Telegram returns the UUID for the current chat with the exact `docker exec … claude --resume <uuid>` invocation.
 - `--no-session-persistence` (used by cron) prevents those sessions from interfering with Telegram session tracking
 - Stream-json output includes `session_id` on every event; capture it from the first event to track sessions
 - `--model` flag selects the Claude model. Shorthand aliases (opus/sonnet/haiku) mapped in `src/claude/models.ts`

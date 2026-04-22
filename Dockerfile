@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2: Production
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y ca-certificates curl git gnupg python3-pip python3-venv && \
+RUN apt-get update && apt-get install -y ca-certificates curl git gnupg python3-pip python3-venv sqlite3 && \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
     apt-get update && apt-get install -y gh && \
@@ -54,7 +54,8 @@ RUN mkdir -p /vault /config /data /data/browser-profile /data/screenshots /home/
     chown -R claude:claude /vault /config /data /home/claude /app
 
 COPY scripts /app/scripts
-RUN chmod +x /app/scripts/*.sh
+RUN chmod +x /app/scripts/*.sh && \
+    ln -s /app/scripts/claude-tg.sh /usr/local/bin/claude-tg
 
 # Switch to claude user, then install Claude CLI natively
 # This ensures the binary lands in /home/claude/.local/bin

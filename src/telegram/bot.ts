@@ -104,7 +104,7 @@ export class TelegramBot {
 
     private setupHandlers() {
         this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Conductor!'));
-        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model, /provider'));
+        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model, /provider, /session'));
 
         this.bot.command('provider', async (ctx) => {
             const text = ctx.message?.text || '';
@@ -234,6 +234,28 @@ export class TelegramBot {
             } else {
                 await ctx.reply('Database not connected.');
             }
+        });
+
+        this.bot.command('session', async (ctx) => {
+            const chatId = ctx.chat?.id;
+            if (!chatId) return;
+            if (!this.db) {
+                await ctx.reply('Database not connected.');
+                return;
+            }
+            const uuid = this.db.getSessionId(chatId);
+            if (!uuid) {
+                await ctx.reply('No session yet for this chat — send a message first.');
+                return;
+            }
+            const resumeCmd = `docker exec -it claude-conductor claude-tg`;
+            const manualCmd = `docker exec -it -w /vault claude-conductor claude --resume ${uuid}`;
+            await ctx.reply(
+                `Session: <code>${uuid}</code>\n\n` +
+                `Resume in container:\n<code>${resumeCmd}</code>\n\n` +
+                `Or target this session explicitly:\n<code>${manualCmd}</code>`,
+                { parse_mode: 'HTML' }
+            );
         });
 
         this.bot.on('message:text', async (ctx) => {

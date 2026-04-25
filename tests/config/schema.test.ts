@@ -171,6 +171,50 @@ describe('ConfigSchema', () => {
         }
     });
 
+    it('should accept queue.timeout_seconds up to 86400', () => {
+        const result = ConfigSchema.safeParse({ queue: { timeout_seconds: 86400 } });
+        expect(result.success).toBe(true);
+    });
+
+    it('should reject queue.timeout_seconds above 86400', () => {
+        const result = ConfigSchema.safeParse({ queue: { timeout_seconds: 86401 } });
+        expect(result.success).toBe(false);
+    });
+
+    it('should accept telegram.timeout_seconds within range', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 't', allowed_users: [1], timeout_seconds: 3600 }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.telegram?.timeout_seconds).toBe(3600);
+        }
+    });
+
+    it('should default telegram.timeout_seconds to undefined when omitted', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 't', allowed_users: [1] }
+        });
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.telegram?.timeout_seconds).toBeUndefined();
+        }
+    });
+
+    it('should reject telegram.timeout_seconds below 30', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 't', allowed_users: [1], timeout_seconds: 10 }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('should reject telegram.timeout_seconds above 86400', () => {
+        const result = ConfigSchema.safeParse({
+            telegram: { bot_token: 't', allowed_users: [1], timeout_seconds: 86401 }
+        });
+        expect(result.success).toBe(false);
+    });
+
     it('should accept global provider field', () => {
         const result = ConfigSchema.safeParse({ provider: 'openrouter' });
         expect(result.success).toBe(true);

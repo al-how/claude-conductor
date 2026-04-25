@@ -9,6 +9,9 @@ telegram:
   streaming_enabled: true
   # Show tool use events (e.g. [tool] Read: /vault/file.md) inline in stream messages
   show_tool_events: true
+  # Per-source timeout override (seconds, 30–86400). Falls back to queue.timeout_seconds.
+  # Set this if you want long Telegram sessions without raising the global queue ceiling.
+  # timeout_seconds: 3600
 
 cron:
   - name: heartbeat
@@ -53,6 +56,7 @@ webhooks: []
 
 queue:
   max_concurrent: 1
+  # Default timeout for any task source (seconds, 30–86400). Telegram can override via telegram.timeout_seconds.
   timeout_seconds: 300
 
 # Google Workspace MCP (Gmail, Calendar, Drive, Docs, etc.)

@@ -343,7 +343,12 @@
             </label>
             <label>
               Timeout (seconds)
-              <input type="number" x-model.number="settings.queue.timeout_seconds" @input="settingsDirty = true" min="30" max="3600">
+              <input type="number" x-model.number="settings.queue.timeout_seconds" @input="settingsDirty = true" min="30" max="86400">
+            </label>
+            <label x-show="settings.telegram_enabled">
+              Telegram Timeout (seconds, optional)
+              <input type="number" x-model.number="settings.telegram.timeout_seconds" @input="settingsDirty = true" min="30" max="86400" placeholder="Inherit from queue">
+              <small>Overrides the queue timeout for Telegram tasks. Leave blank to inherit.</small>
             </label>
           </div>
 
@@ -427,7 +432,7 @@
         history: [],
 
         // Settings
-        settings: { model: '', customModel: '', queue: { max_concurrent: 1, timeout_seconds: 300 }, vault_path: '', telegram_enabled: false, api_enabled: false, browser: {} },
+        settings: { model: '', customModel: '', queue: { max_concurrent: 1, timeout_seconds: 300 }, telegram: { timeout_seconds: null }, vault_path: '', telegram_enabled: false, api_enabled: false, browser: {} },
         settingsDirty: false,
 
         // Model picker
@@ -630,6 +635,8 @@
         async loadSettings() {
           const res = await fetch('/api/settings');
           const data = await res.json();
+          // Defensive defaults so x-model bindings never see undefined
+          if (!data.telegram) data.telegram = { timeout_seconds: null };
           // Check if model is a preset or custom
           const presets = ['opus', 'sonnet', 'haiku', '', null];
           if (presets.includes(data.model)) {
@@ -642,16 +649,22 @@
 
         async saveSettings() {
           const model = this.settings.customModel || this.settings.model || null;
+          const telegramTimeout = this.settings.telegram?.timeout_seconds;
+          const body = {
+            model,
+            queue: {
+              max_concurrent: this.settings.queue.max_concurrent,
+              timeout_seconds: this.settings.queue.timeout_seconds,
+            }
+          };
+          if (this.settings.telegram_enabled) {
+            // null clears the override; numeric value sets it
+            body.telegram = { timeout_seconds: (telegramTimeout === '' || telegramTimeout == null) ? null : telegramTimeout };
+          }
           const res = await fetch('/api/settings', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model,
-              queue: {
-                max_concurrent: this.settings.queue.max_concurrent,
-                timeout_seconds: this.settings.queue.timeout_seconds,
-              }
-            })
+            body: JSON.stringify(body)
           });
           if (res.ok) {
             this.settingsDirty = false;

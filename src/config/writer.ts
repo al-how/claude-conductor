@@ -19,3 +19,19 @@ export function updateConfigField(dotPath: string, value: unknown, configPath?: 
 
     writeFileSync(filePath, doc.toString(), 'utf-8');
 }
+
+/**
+ * Remove a field from the YAML config file. No-op if the field doesn't exist.
+ * Use this for optional fields that the user wants to clear (vs. setting to null,
+ * which would break Zod `.optional()` schemas on next reload).
+ */
+export function deleteConfigField(dotPath: string, configPath?: string): void {
+    const filePath = configPath ?? process.env.CONFIG_PATH ?? '/config/config.yaml';
+    const raw = readFileSync(filePath, 'utf-8');
+    const doc = parseDocument(raw);
+
+    const keys = dotPath.split('.');
+    doc.deleteIn(keys);
+
+    writeFileSync(filePath, doc.toString(), 'utf-8');
+}

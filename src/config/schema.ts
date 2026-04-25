@@ -36,7 +36,7 @@ const WebhookRouteSchema = z.object({
 
 const QueueConfigSchema = z.object({
     max_concurrent: z.number().int().min(1).max(10).default(1),
-    timeout_seconds: z.number().int().min(30).max(3600).default(300),
+    timeout_seconds: z.number().int().min(30).max(86400).default(300),
     priority: z.object({
         telegram: z.number().int().min(1).max(10).default(1),
         cron: z.number().int().min(1).max(10).default(2),

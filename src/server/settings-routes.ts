@@ -1,13 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import type { Config } from '../config/schema.js';
 import { z } from 'zod/v3';
-import { updateConfigField } from '../config/writer.js';
+import { updateConfigField, deleteConfigField } from '../config/writer.js';
 
 const SettingsPatchSchema = z.object({
     model: z.string().nullable().optional(),
     queue: z.object({
         max_concurrent: z.number().int().min(1).max(10).optional(),
-        timeout_seconds: z.number().int().min(30).max(3600).optional(),
+        timeout_seconds: z.number().int().min(30).max(86400).optional(),
+    }).optional(),
+    telegram: z.object({
+        timeout_seconds: z.number().int().min(30).max(86400).nullable().optional(),
     }).optional(),
 });
 
@@ -18,6 +21,9 @@ export function registerSettingsRoutes(app: FastifyInstance, config: Config) {
             queue: {
                 max_concurrent: config.queue.max_concurrent,
                 timeout_seconds: config.queue.timeout_seconds,
+            },
+            telegram: {
+                timeout_seconds: config.telegram?.timeout_seconds ?? null,
             },
             vault_path: config.vault_path,
             telegram_enabled: !!config.telegram,
@@ -57,11 +63,27 @@ export function registerSettingsRoutes(app: FastifyInstance, config: Config) {
             }
         }
 
+        // Update telegram settings (only if telegram is configured)
+        if (body.telegram && config.telegram) {
+            if (body.telegram.timeout_seconds !== undefined) {
+                if (body.telegram.timeout_seconds === null) {
+                    config.telegram.timeout_seconds = undefined;
+                    deleteConfigField('telegram.timeout_seconds');
+                } else {
+                    config.telegram.timeout_seconds = body.telegram.timeout_seconds;
+                    updateConfigField('telegram.timeout_seconds', body.telegram.timeout_seconds);
+                }
+            }
+        }
+
         return {
             model: config.model ?? null,
             queue: {
                 max_concurrent: config.queue.max_concurrent,
                 timeout_seconds: config.queue.timeout_seconds,
+            },
+            telegram: {
+                timeout_seconds: config.telegram?.timeout_seconds ?? null,
             },
             vault_path: config.vault_path,
             telegram_enabled: !!config.telegram,

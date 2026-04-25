@@ -5,6 +5,7 @@ const TelegramConfigSchema = z.object({
     allowed_users: z.array(z.number().int().positive()).min(1, 'At least one allowed user required'),
     streaming_enabled: z.boolean().default(true),
     show_tool_events: z.boolean().default(true),
+    timeout_seconds: z.number().int().min(30).max(86400).optional(),
 });
 
 export const CronJobSchema = z.object({

@@ -7,10 +7,10 @@
 #
 # Works around the unreliable "most recent" pointer used by `claude --continue`
 # and the interactive `/resume` picker by reading the UUID straight from
-# /data/conductor.db and passing it to `claude --resume <uuid>`.
+# the harness DB and passing it to `claude --resume <uuid>`.
 set -euo pipefail
 
-DB_PATH="${CONDUCTOR_DB:-/data/conductor.db}"
+DB_PATH="${DB_PATH:-/data/harness.db}"
 
 if [ ! -f "$DB_PATH" ]; then
     echo "claude-tg: database not found at $DB_PATH" >&2

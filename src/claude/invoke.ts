@@ -57,8 +57,12 @@ export function buildClaudeArgs(options: ClaudeInvokeOptions): string[] {
 
     const args: string[] = ['-p', prompt];
 
-    if (sessionId) args.push('--session-id', sessionId);
-    if (resume) args.push('--resume');
+    if (resume && sessionId) {
+        args.push('--resume', sessionId);
+    } else {
+        if (sessionId) args.push('--session-id', sessionId);
+        if (resume) args.push('--resume');
+    }
     if (continueSession) args.push('--continue');
     if (forkSession) args.push('--fork-session');
     if (dangerouslySkipPermissions) args.push('--dangerously-skip-permissions');

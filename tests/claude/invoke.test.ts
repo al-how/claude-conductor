@@ -42,9 +42,9 @@ describe('buildClaudeArgs', () => {
             sessionId: '550e8400-e29b-41d4-a716-446655440000',
             resume: true
         });
-        expect(args).toContain('--session-id');
-        expect(args).toContain('550e8400-e29b-41d4-a716-446655440000');
         expect(args).toContain('--resume');
+        expect(args).toContain('550e8400-e29b-41d4-a716-446655440000');
+        expect(args).not.toContain('--session-id');
     });
 
     it('should include --allowedTools as space-separated values', () => {

@@ -191,7 +191,7 @@ Three permission mechanisms available:
 | `--output-format json` | Parse responses programmatically (structured output with tool calls, costs, etc.) |
 | `--output-format stream-json` | Stream tokens in real-time (future: live Telegram updates) |
 | `--max-turns N` | Cap agentic loops to prevent runaway sessions |
-| `--session-id <uuid>` | Named sessions for Telegram conversation continuity |
+| `--session-id <uuid>` | Set an explicit session ID for a new named session |
 | `--continue` / `--resume` | Continue previous conversation |
 | `--append-system-prompt` | Inject harness context while keeping CLAUDE.md defaults |
 | `--mcp-config <path>` | Load MCP servers (Home Assistant, etc.) per session |
@@ -199,7 +199,7 @@ Three permission mechanisms available:
 | `--add-dir <path>` | Give Claude Code access to additional directories outside the working directory (e.g., `--add-dir /config`). CLAUDE.md files from added dirs are not loaded by default unless `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` is set. |
 
 **Session model:**
-- Telegram messages: first message starts a fresh persistent Claude session; follow-ups use `claude -p --session-id <saved-uuid> --resume`, where `<saved-uuid>` is the Claude session UUID stored for that Telegram chat
+- Telegram messages: first message starts a fresh persistent Claude session; follow-ups use `claude -p --resume <saved-uuid>`, where `<saved-uuid>` is the Claude session UUID stored for that Telegram chat
 - Cron jobs: `claude -p --no-session-persistence` for stateless one-shot execution
 - Webhooks: `claude -p` with fresh session per event
 

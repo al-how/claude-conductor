@@ -249,7 +249,7 @@ If you detect a login wall:
 3. End your response with: "The [site name] session has expired. Please re-login via noVNC at http://HOST:${config.browser.vnc_port} and reply 'done' when ready."
 4. Do NOT attempt to log in programmatically
 
-Note: You cannot pause and wait for user input mid-session. Detecting a login wall means you end this response. The user will re-authenticate via noVNC, reply in Telegram, and a new session will pick up where you left off via --continue.
+Note: You cannot pause and wait for user input mid-session. Detecting a login wall means you end this response. The user will re-authenticate via noVNC, reply in Telegram, and the resumed Telegram session will pick up where you left off.
 
 ## Form Submission Rules
 

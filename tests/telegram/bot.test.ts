@@ -269,7 +269,116 @@ describe('TelegramBot', () => {
         const task = enqueueSpy.mock.calls[0][0];
         expect(task.prompt).not.toContain('<conversation_history>');
         expect(task.prompt).toBe('hello');
+        expect(task.sessionId).toBe('550e8400-e29b-41d4-a716-446655440000');
+        expect(task.resume).toBe(true);
+        expect(task.continue).toBeUndefined();
         expect(mockDb.getRecentContext).not.toHaveBeenCalled();
+    });
+
+    it('should not set resume or continue when no session exists', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn().mockReturnValue(undefined)
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any
+        });
+
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello', message_id: 1 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        const task = enqueueSpy.mock.calls[0][0];
+        expect(task.sessionId).toBeUndefined();
+        expect(task.resume).toBeUndefined();
+        expect(task.continue).toBeUndefined();
+    });
+
+    it('/clear should delete the saved session so the next message starts fresh', async () => {
+        const dispatcher = new Dispatcher();
+        const enqueueSpy = vi.spyOn(dispatcher, 'enqueue');
+        const mockDb = {
+            saveMessage: vi.fn(),
+            getRecentContext: vi.fn().mockReturnValue([]),
+            getSessionId: vi.fn()
+                .mockReturnValueOnce('550e8400-e29b-41d4-a716-446655440000')
+                .mockReturnValueOnce(undefined),
+            clearConversation: vi.fn(),
+            clearSessionId: vi.fn()
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            dispatcher,
+            db: mockDb as any
+        });
+
+        const clearHandler = getCommandHandler('clear')!;
+        const clearCtx = {
+            chat: { id: 100 },
+            reply: vi.fn()
+        };
+
+        await clearHandler(clearCtx);
+
+        expect(mockDb.clearConversation).toHaveBeenCalledWith(100);
+        expect(mockDb.clearSessionId).toHaveBeenCalledWith(100);
+
+        const textHandler = getMessageHandler()!;
+        const mockCtx = {
+            from: { id: 123 },
+            message: { text: 'hello after clear', message_id: 2 },
+            chat: { id: 100 },
+            reply: vi.fn(),
+            replyWithChatAction: vi.fn()
+        };
+
+        await textHandler(mockCtx);
+
+        const task = enqueueSpy.mock.calls[0][0];
+        expect(task.sessionId).toBeUndefined();
+        expect(task.resume).toBeUndefined();
+        expect(task.continue).toBeUndefined();
+    });
+
+    it('/session should show the stored UUID and resume command', async () => {
+        const mockDb = {
+            getSessionId: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000')
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            db: mockDb as any
+        });
+
+        const sessionHandler = getCommandHandler('session')!;
+        const mockCtx = {
+            chat: { id: 100 },
+            reply: vi.fn()
+        };
+
+        await sessionHandler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('claude --resume 550e8400-e29b-41d4-a716-446655440000'),
+            expect.objectContaining({ parse_mode: 'HTML' })
+        );
     });
 
     it('/model haiku <prompt> should send one-time override without changing sticky', async () => {

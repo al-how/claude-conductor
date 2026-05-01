@@ -199,7 +199,7 @@ Three permission mechanisms available:
 | `--add-dir <path>` | Give Claude Code access to additional directories outside the working directory (e.g., `--add-dir /config`). CLAUDE.md files from added dirs are not loaded by default unless `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` is set. |
 
 **Session model:**
-- Telegram messages: `claude -p --session-id <telegram-chat-id> --resume` for conversation continuity
+- Telegram messages: first message starts a fresh persistent Claude session; follow-ups use `claude -p --session-id <saved-uuid> --resume`, where `<saved-uuid>` is the Claude session UUID stored for that Telegram chat
 - Cron jobs: `claude -p --no-session-persistence` for stateless one-shot execution
 - Webhooks: `claude -p` with fresh session per event
 

@@ -399,7 +399,7 @@ export class TelegramBot {
 
         // Check if this chat has an existing Claude Code session to continue
         const chatId = ctx.chat!.id;
-        const hasSession = !!this.db?.getSessionId(chatId);
+        const sessionId = this.db?.getSessionId(chatId);
 
         // Load sticky settings from DB (if available), fall back to in-memory
         const chatSettings = (this.db as any)?.getChatSettings?.(chatId);
@@ -515,7 +515,7 @@ export class TelegramBot {
             logger: this.logger,
             dangerouslySkipPermissions: true,
             includePartialMessages: this.streamingEnabled,
-            ...(hasSession ? { continue: true } : {}),
+            ...(sessionId ? { sessionId, resume: true } : {}),
             ...(this.timeoutSeconds !== undefined ? { timeout: this.timeoutSeconds * 1000 } : {}),
             model,
             providerEnv,

@@ -5,9 +5,9 @@
 #   claude-tg                  # resume the newest session (single-chat common case)
 #   claude-tg <chat_id>        # resume the session for a specific Telegram chat_id
 #
-# Works around the unreliable "most recent" pointer used by `claude --continue`
-# and the interactive `/resume` picker by reading the UUID straight from
-# the harness DB and passing it to `claude --resume <uuid>`.
+# Reads the Telegram chat's persisted Claude session UUID straight from
+# the harness DB and runs `claude --resume <uuid>` so manual CLI work
+# stays aligned with the bot's session tracking.
 set -euo pipefail
 
 DB_PATH="${DB_PATH:-/data/harness.db}"

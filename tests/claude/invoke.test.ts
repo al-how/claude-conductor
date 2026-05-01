@@ -36,6 +36,17 @@ describe('buildClaudeArgs', () => {
         expect(args).toContain('--resume');
     });
 
+    it('should support resuming an explicit persisted session by UUID', () => {
+        const args = buildClaudeArgs({
+            prompt: 'hi',
+            sessionId: '550e8400-e29b-41d4-a716-446655440000',
+            resume: true
+        });
+        expect(args).toContain('--session-id');
+        expect(args).toContain('550e8400-e29b-41d4-a716-446655440000');
+        expect(args).toContain('--resume');
+    });
+
     it('should include --allowedTools as space-separated values', () => {
         const args = buildClaudeArgs({ prompt: 'hi', allowedTools: ['Read', 'Glob', 'Grep'] });
         expect(args).toContain('--allowedTools');

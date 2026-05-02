@@ -144,12 +144,20 @@ export class TelegramBot {
             const providerArg = parts[0].toLowerCase() as 'claude' | 'openrouter' | 'ollama' | 'default' | 'reset';
 
             if (providerArg === 'default' || providerArg === 'reset') {
+                const previousProvider = chatId
+                    ? ((this.db as any)?.getChatSettings?.(chatId) as any)?.provider || this.stickyProvider || this.globalProvider
+                    : this.stickyProvider || this.globalProvider;
                 this.stickyProvider = undefined;
                 this.stickyModel = undefined;
                 if (chatId) {
                     (this.db as any)?.setChatSettings?.(chatId, { provider: null, model: null });
                 }
-                await ctx.reply('Provider reset to default.');
+                let resetMsg = 'Provider reset to default.';
+                if (previousProvider && previousProvider !== (this.globalProvider || 'claude')) {
+                    if (this.db && chatId) this.db.clearSessionId(chatId);
+                    resetMsg += '\nSession cleared — next message will start fresh on default provider.';
+                }
+                await ctx.reply(resetMsg);
                 return;
             }
 
@@ -168,12 +176,21 @@ export class TelegramBot {
 
             // Set sticky provider and clear sticky model to avoid cross-provider model conflicts
             // (e.g. switching from Claude "sonnet" to OpenRouter with a strict allowlist).
+            // Also clear the session UUID since sessions are scoped to the API endpoint.
+            const previousProvider = chatId
+                ? ((this.db as any)?.getChatSettings?.(chatId) as any)?.provider || this.stickyProvider || this.globalProvider
+                : this.stickyProvider || this.globalProvider;
             this.stickyProvider = providerArg as 'claude' | 'openrouter' | 'ollama';
             this.stickyModel = undefined;
             if (chatId) {
                 (this.db as any)?.setChatSettings?.(chatId, { provider: this.stickyProvider, model: null });
             }
-            await ctx.reply(`Provider set to: ${this.stickyProvider} (model reset to provider default)`);
+            let response = `Provider set to: ${this.stickyProvider} (model reset to provider default)`;
+            if (previousProvider && previousProvider !== this.stickyProvider) {
+                if (this.db && chatId) this.db.clearSessionId(chatId);
+                response += '\nSession cleared — next message will start a fresh session on the new provider.';
+            }
+            await ctx.reply(response);
         });
 
         this.bot.command('model', async (ctx) => {
@@ -278,10 +295,32 @@ export class TelegramBot {
                 await ctx.reply('No session yet for this chat — send a message first.');
                 return;
             }
+
+            // Determine effective provider
+            const chatSettings = (this.db as any)?.getChatSettings?.(chatId);
+            const effectiveProvider = chatSettings?.provider || this.stickyProvider || this.globalProvider;
+
+            // Build provider env prefix for manual CLI resume
+            let envPrefix = '';
+            if (effectiveProvider === 'openrouter' && this.openRouterConfig) {
+                envPrefix =
+                    `ANTHROPIC_BASE_URL=${this.openRouterConfig.base_url ?? 'https://openrouter.ai/api'} ` +
+                    `ANTHROPIC_AUTH_TOKEN=${this.openRouterConfig.api_key} ANTHROPIC_API_KEY='' `;
+            } else if (effectiveProvider === 'ollama' && this.ollamaConfig) {
+                envPrefix =
+                    `ANTHROPIC_BASE_URL=${this.ollamaConfig.base_url} ` +
+                    `ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY='' `;
+            }
+
             const resumeCmd = `docker exec -it claude-conductor claude-tg`;
-            const manualCmd = `docker exec -it -w /vault claude-conductor claude --resume ${uuid}`;
+            const manualCmd = `docker exec -it -w /vault claude-conductor ${envPrefix}claude --resume ${uuid}`;
+
+            const hint = envPrefix
+                ? '\n\nNote: non-default provider detected. claude-tg handles env vars automatically. For manual CLI, use the command below.'
+                : '';
+
             await ctx.reply(
-                `Session: <code>${uuid}</code>\n\n` +
+                `Session: <code>${uuid}</code>${hint}\n\n` +
                 `Resume in container:\n<code>${resumeCmd}</code>\n\n` +
                 `Or target this session explicitly:\n<code>${manualCmd}</code>`,
                 { parse_mode: 'HTML' }

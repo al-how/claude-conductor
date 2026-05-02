@@ -28,6 +28,30 @@ export async function main() {
     const config = loadConfig();
     logger.info({ configPath: process.env.CONFIG_PATH }, 'Config loaded');
 
+    // Export provider env configs for claude-tg.sh and manual CLI resumption
+    try {
+        const providerEnv: Record<string, Record<string, string>> = {};
+        if (config.openrouter) {
+            providerEnv.openrouter = {
+                ANTHROPIC_BASE_URL: config.openrouter.base_url ?? 'https://openrouter.ai/api',
+                ANTHROPIC_AUTH_TOKEN: config.openrouter.api_key,
+                ANTHROPIC_API_KEY: '',
+            };
+        }
+        if (config.ollama) {
+            providerEnv.ollama = {
+                ANTHROPIC_BASE_URL: config.ollama.base_url,
+                ANTHROPIC_AUTH_TOKEN: 'ollama',
+                ANTHROPIC_API_KEY: '',
+            };
+        }
+        const envFile = '/data/provider-env.json';
+        writeFileSync(envFile, JSON.stringify(providerEnv, null, 2));
+        logger.info({ path: envFile }, 'Exported provider env configs');
+    } catch (err) {
+        logger.warn({ err }, 'Failed to export provider env configs');
+    }
+
     // Register MCP research server (only in container context)
     try {
         registerMcpServer(logger);

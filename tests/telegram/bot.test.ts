@@ -23,6 +23,8 @@ const mockStart = vi.fn();
 const mockStop = vi.fn();
 const mockCatch = vi.fn();
 
+const mockApi = { setMyCommands: vi.fn() };
+
 vi.mock('grammy', () => {
     return {
         Bot: vi.fn().mockImplementation(() => ({
@@ -31,7 +33,8 @@ vi.mock('grammy', () => {
             on: mockOn,
             start: mockStart,
             stop: mockStop,
-            catch: mockCatch
+            catch: mockCatch,
+            api: mockApi
         })),
         InputFile: vi.fn()
     };
@@ -96,7 +99,7 @@ describe('TelegramBot', () => {
         expect(mockCommand).toHaveBeenCalledWith('model', expect.any(Function));
     });
 
-    it('/model with no args should reply with current model', async () => {
+    it('/model with no args should reply with current model and provider', async () => {
         new TelegramBot({
             token: 'fake-token',
             allowedUsers: [123],
@@ -112,6 +115,7 @@ describe('TelegramBot', () => {
         await handler(mockCtx);
 
         expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('sonnet'));
+        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('Provider: claude'));
     });
 
     it('/model sonnet should set sticky model', async () => {
@@ -416,7 +420,7 @@ describe('TelegramBot', () => {
         // Sticky model should NOT be set — verify by querying
         const queryCtx = { message: { text: '/model' }, reply: vi.fn() };
         await modelHandler(queryCtx);
-        expect(queryCtx.reply).toHaveBeenCalledWith('Current model: default (CLI default)');
+        expect(queryCtx.reply).toHaveBeenCalledWith('Current model: default (CLI default)\nProvider: claude');
     });
 
     it('/model with unknown alias and prompt should treat entire text as sticky', async () => {
@@ -437,7 +441,7 @@ describe('TelegramBot', () => {
         expect(mockCtx.reply).toHaveBeenCalledWith('Model set to: custommodel');
     });
 
-    it('/help should include /model in command list', () => {
+    it('/help should show expanded help with /model and /provider usage and examples', () => {
         new TelegramBot({
             token: 'fake-token',
             allowedUsers: [123]
@@ -447,7 +451,147 @@ describe('TelegramBot', () => {
         const mockCtx = { reply: vi.fn() };
         handler(mockCtx);
 
-        expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('/model'));
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('/model')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('/provider')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('/model <alias> <prompt> — one-time override')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('/provider <provider> <prompt> — one-time override')
+        );
+    });
+
+    it('/model with OpenRouter provider should show allowed models', async () => {
+        const mockDb = {
+            getChatSettings: vi.fn().mockReturnValue({ provider: 'openrouter', model: 'qwen/qwen3-coder' })
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            db: mockDb as any,
+            openRouterConfig: {
+                api_key: 'sk-or-test',
+                base_url: 'https://openrouter.ai/api',
+                default_model: 'qwen/qwen3-coder',
+                allowed_models: ['qwen/qwen3-coder', 'google/gemini-2.0-flash-001', 'meta-llama/llama-4-scout']
+            }
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            chat: { id: 100 },
+            message: { text: '/model' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('qwen/qwen3-coder')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('Provider: openrouter')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('Available models: qwen/qwen3-coder, google/gemini-2.0-flash-001, meta-llama/llama-4-scout')
+        );
+    });
+
+    it('/model with Ollama provider should show allowed models', async () => {
+        const mockDb = {
+            getChatSettings: vi.fn().mockReturnValue({ provider: 'ollama', model: 'qwen3-coder' })
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            db: mockDb as any,
+            ollamaConfig: {
+                base_url: 'http://host:11434',
+                default_model: 'qwen3-coder',
+                allowed_models: ['qwen3-coder', 'llama3.3']
+            }
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            chat: { id: 100 },
+            message: { text: '/model' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('qwen3-coder')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('Provider: ollama')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('Available models: qwen3-coder, llama3.3')
+        );
+    });
+
+    it('/model with Claude provider should NOT show allowed models list', async () => {
+        const mockDb = {
+            getChatSettings: vi.fn().mockReturnValue({ provider: 'claude', model: 'sonnet' })
+        };
+
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123],
+            db: mockDb as any
+        });
+
+        const handler = getCommandHandler('model')!;
+        const mockCtx = {
+            chat: { id: 100 },
+            message: { text: '/model' },
+            reply: vi.fn()
+        };
+
+        await handler(mockCtx);
+
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('sonnet')
+        );
+        expect(mockCtx.reply).toHaveBeenCalledWith(
+            expect.stringContaining('Provider: claude')
+        );
+        expect(mockCtx.reply).not.toHaveBeenCalledWith(
+            expect.stringContaining('Available models')
+        );
+    });
+
+    it('should call setMyCommands on start with expected commands', async () => {
+        new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        mockApi.setMyCommands.mockClear();
+
+        const bot = new TelegramBot({
+            token: 'fake-token',
+            allowedUsers: [123]
+        });
+
+        await bot.start();
+
+        expect(mockApi.setMyCommands).toHaveBeenCalledWith([
+            { command: 'start', description: 'Start the bot' },
+            { command: 'help', description: 'Show commands and examples' },
+            { command: 'session', description: 'Show current Claude session' },
+            { command: 'clear', description: 'Clear conversation and session' },
+            { command: 'model', description: 'Show or set model/alias' },
+            { command: 'provider', description: 'Show or set AI provider' },
+        ]);
     });
 
     it('/provider openrouter should clear sticky model and use openrouter default', async () => {

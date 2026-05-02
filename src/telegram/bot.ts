@@ -107,7 +107,25 @@ export class TelegramBot {
 
     private setupHandlers() {
         this.bot.command('start', (ctx) => ctx.reply('Welcome to Claude Conductor!'));
-        this.bot.command('help', (ctx) => ctx.reply('Commands: /start, /help, /clear, /model, /provider, /session'));
+        this.bot.command('help', (ctx) => ctx.reply(
+            'Commands:\n' +
+            '/start - Start the bot\n' +
+            '/help - Show this message\n' +
+            '/session - Show current Claude session UUID and resume commands\n' +
+            '/clear - Clear conversation and start a new session\n' +
+            '/model - Show or set the model\n' +
+            '  Usage: /model — show current model (and available models for current provider)\n' +
+            '         /model <alias-or-model-id> — set model (aliases: sonnet, opus, haiku for Claude)\n' +
+            '         /model reset — reset to default\n' +
+            '         /model <alias> <prompt> — one-time override with specific model\n' +
+            '  Examples: /model sonnet, /model haiku summarize today, /model reset\n' +
+            '/provider - Show or set the AI provider\n' +
+            '  Usage: /provider — show current provider\n' +
+            '         /provider <claude|openrouter|ollama> — set provider\n' +
+            '         /provider reset — reset to default\n' +
+            '         /provider <provider> <prompt> — one-time override with specific provider\n' +
+            '  Examples: /provider openrouter, /provider claude'
+        ));
 
         this.bot.command('provider', async (ctx) => {
             const text = ctx.message?.text || '';
@@ -166,7 +184,16 @@ export class TelegramBot {
             if (!args) {
                 const chatSettings = chatId ? (this.db as any)?.getChatSettings?.(chatId) : undefined;
                 const current = chatSettings?.model || this.stickyModel || this.globalModel || 'default (CLI default)';
-                await ctx.reply(`Current model: ${current}`);
+                const effectiveProvider = chatSettings?.provider || this.stickyProvider || this.globalProvider || 'claude';
+                let response = `Current model: ${current}\nProvider: ${effectiveProvider}`;
+                if (effectiveProvider === 'openrouter' && this.openRouterConfig?.allowed_models) {
+                    const allowed = this.openRouterConfig.allowed_models.join(', ');
+                    response += `\nAvailable models: ${allowed}`;
+                } else if (effectiveProvider === 'ollama' && this.ollamaConfig?.allowed_models) {
+                    const allowed = this.ollamaConfig.allowed_models.join(', ');
+                    response += `\nAvailable models: ${allowed}`;
+                }
+                await ctx.reply(response);
                 return;
             }
 
@@ -629,6 +656,18 @@ export class TelegramBot {
 
     public async start() {
         this.logger?.info('Starting Telegram Bot');
+        try {
+            await this.bot.api.setMyCommands([
+                { command: 'start', description: 'Start the bot' },
+                { command: 'help', description: 'Show commands and examples' },
+                { command: 'session', description: 'Show current Claude session' },
+                { command: 'clear', description: 'Clear conversation and session' },
+                { command: 'model', description: 'Show or set model/alias' },
+                { command: 'provider', description: 'Show or set AI provider' },
+            ]);
+        } catch (e) {
+            this.logger?.warn({ err: e }, 'Failed to set bot commands');
+        }
         await this.bot.start({
             onStart: (botInfo) => {
                 this.logger?.info({ botInfo }, 'Telegram Bot started');

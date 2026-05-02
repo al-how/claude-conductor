@@ -178,8 +178,8 @@ export class TelegramBot {
             // (e.g. switching from Claude "sonnet" to OpenRouter with a strict allowlist).
             // Also clear the session UUID since sessions are scoped to the API endpoint.
             const previousProvider = chatId
-                ? ((this.db as any)?.getChatSettings?.(chatId) as any)?.provider || this.stickyProvider || this.globalProvider
-                : this.stickyProvider || this.globalProvider;
+                ? ((this.db as any)?.getChatSettings?.(chatId) as any)?.provider || this.stickyProvider || this.globalProvider || 'claude'
+                : this.stickyProvider || this.globalProvider || 'claude';
             this.stickyProvider = providerArg as 'claude' | 'openrouter' | 'ollama';
             this.stickyModel = undefined;
             if (chatId) {
@@ -300,23 +300,11 @@ export class TelegramBot {
             const chatSettings = (this.db as any)?.getChatSettings?.(chatId);
             const effectiveProvider = chatSettings?.provider || this.stickyProvider || this.globalProvider;
 
-            // Build provider env prefix for manual CLI resume
-            let envPrefix = '';
-            if (effectiveProvider === 'openrouter' && this.openRouterConfig) {
-                envPrefix =
-                    `ANTHROPIC_BASE_URL=${this.openRouterConfig.base_url ?? 'https://openrouter.ai/api'} ` +
-                    `ANTHROPIC_AUTH_TOKEN=${this.openRouterConfig.api_key} ANTHROPIC_API_KEY='' `;
-            } else if (effectiveProvider === 'ollama' && this.ollamaConfig) {
-                envPrefix =
-                    `ANTHROPIC_BASE_URL=${this.ollamaConfig.base_url} ` +
-                    `ANTHROPIC_AUTH_TOKEN=ollama ANTHROPIC_API_KEY='' `;
-            }
-
             const resumeCmd = `docker exec -it claude-conductor claude-tg`;
-            const manualCmd = `docker exec -it -w /vault claude-conductor ${envPrefix}claude --resume ${uuid}`;
+            const manualCmd = `docker exec -it -w /vault claude-conductor claude --resume ${uuid}`;
 
-            const hint = envPrefix
-                ? '\n\nNote: non-default provider detected. claude-tg handles env vars automatically. For manual CLI, use the command below.'
+            const hint = effectiveProvider && effectiveProvider !== 'claude'
+                ? '\n\nNote: non-default provider detected — claude-tg injects provider env vars automatically. For manual CLI, set ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN from /data/provider-env.json before running the command.'
                 : '';
 
             await ctx.reply(

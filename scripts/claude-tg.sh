@@ -33,13 +33,12 @@ if [ "$#" -ge 1 ] && [[ "$1" =~ ^-?[0-9]+$ ]]; then
         exit 1
     fi
 else
-    SESSION_ID=$(sqlite3 "$DB_PATH" \
-        "SELECT session_id FROM claude_sessions ORDER BY updated_at DESC LIMIT 1;")
+    IFS='|' read -r CHAT_ID SESSION_ID <<< "$(sqlite3 "$DB_PATH" \
+        "SELECT chat_id, session_id FROM claude_sessions ORDER BY updated_at DESC LIMIT 1;")"
     if [ -z "$SESSION_ID" ]; then
         echo "claude-tg: no Telegram sessions found in $DB_PATH" >&2
         exit 1
     fi
-    CHAT_ID=""
 fi
 
 # If we have a chat_id, check for non-default provider and inject env vars

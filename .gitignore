@@ -12,3 +12,4 @@ settings.local.json
 ntfy_hook.ps1
 data/
 google-workspace-tokens/
+opencode.json

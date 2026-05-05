@@ -167,6 +167,7 @@ export function registerN8nMcp(n8nConfig: N8nConfig, logger: Logger): void {
         LOG_LEVEL: 'error',
         DISABLE_CONSOLE_OUTPUT: 'true',
         N8N_MCP_TELEMETRY_DISABLED: 'true',
+        N8N_SSRF_ALLOWED_IP_RANGES: '192.168.0.0/16,10.0.0.0/8,172.16.0.0/12',
     };
     if (n8nConfig.api_url) env.N8N_API_URL = n8nConfig.api_url;
     if (n8nConfig.api_key) env.N8N_API_KEY = n8nConfig.api_key;

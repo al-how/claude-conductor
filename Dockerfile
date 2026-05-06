@@ -29,6 +29,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Install Gemini CLI globally (as root, before user switch)
 RUN npm install -g @google/gemini-cli
 
+# Pre-install n8n-mcp globally so Claude Code can run it without npx
+# and to guarantee a version that respects WEBHOOK_SECURITY_MODE
+RUN npm install -g n8n-mcp
+
 # Install Chromium, noVNC, and websockify for browser automation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \

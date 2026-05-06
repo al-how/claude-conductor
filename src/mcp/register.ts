@@ -174,8 +174,8 @@ export function registerN8nMcp(n8nConfig: N8nConfig, logger: Logger): void {
 
     config.mcpServers['n8n-mcp'] = {
         type: 'stdio',
-        command: 'npx',
-        args: ['--yes', 'n8n-mcp'],
+        command: 'n8n-mcp',
+        args: [],
         env,
     };
 

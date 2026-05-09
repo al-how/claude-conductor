@@ -102,7 +102,7 @@ const VoiceConfigSchema = z.object({
 }).superRefine((data, ctx) => {
     if (data.enabled) {
         if (data.chat_id === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['chat_id'], message: 'Required when voice is enabled' });
-        if (!data.auth_token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['auth_token'], message: 'Required when voice is enabled' });
+        // auth_token is optional — omit it when running on a trusted network (VPN/local)
         if (!data.stt_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['stt_url'], message: 'Required when voice is enabled' });
         if (!data.tts_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tts_url'], message: 'Required when voice is enabled' });
     }

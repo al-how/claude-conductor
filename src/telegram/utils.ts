@@ -135,7 +135,7 @@ export function extractScreenshotPaths(text: string): string[] {
     return [...new Set(text.match(regex) || [])];
 }
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
     return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

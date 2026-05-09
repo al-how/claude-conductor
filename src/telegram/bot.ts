@@ -1,9 +1,10 @@
 import { Bot, Context, InputFile } from 'grammy';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml, extractScreenshotPaths } from './utils.js';
+import { chunkMessage, downloadTelegramFile, escapePromptContent, markdownToTelegramHtml, extractScreenshotPaths, escapeHtml } from './utils.js';
 import { extractResponseText } from '../claude/invoke.js';
 import { resolveExecutionTarget, isKnownAlias } from '../claude/models.js';
+import { listRecentSessions, formatRelativeTime } from '../claude/sessions.js';
 import type { ClaudeResult, StreamEvent } from '../claude/invoke.js';
 import type { OllamaConfig, OpenRouterConfig } from '../config/schema.js';
 import type { Logger } from 'pino';
@@ -112,6 +113,8 @@ export class TelegramBot {
             '/start - Start the bot\n' +
             '/help - Show this message\n' +
             '/session - Show current Claude session UUID and resume commands\n' +
+            '/history - List the 10 most recent sessions for this vault\n' +
+            '/resume <n> - Switch this chat to session number <n> from /history\n' +
             '/clear - Clear conversation and start a new session\n' +
             '/model - Show or set the model\n' +
             '  Usage: /model — show current model (and available models for current provider)\n' +
@@ -311,6 +314,90 @@ export class TelegramBot {
                 `Session: <code>${uuid}</code>${hint}\n\n` +
                 `Resume in container:\n<code>${resumeCmd}</code>\n\n` +
                 `Or target this session explicitly:\n<code>${manualCmd}</code>`,
+                { parse_mode: 'HTML' }
+            );
+        });
+
+        this.bot.command('history', async (ctx) => {
+            const chatId = ctx.chat?.id;
+            if (!chatId) return;
+            if (!this.db) {
+                await ctx.reply('Database not connected.');
+                return;
+            }
+
+            let sessions;
+            try {
+                sessions = await listRecentSessions({ vaultPath: this.workingDir, limit: 10 });
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to list recent sessions');
+                await ctx.reply('Failed to read session history.');
+                return;
+            }
+
+            if (sessions.length === 0) {
+                await ctx.reply('No sessions found yet — send a message first.');
+                return;
+            }
+
+            const currentUuid = this.db.getSessionId(chatId);
+            const lines = sessions.map((s, i) => {
+                const idx = String(i + 1).padStart(2, ' ');
+                const marker = s.uuid === currentUuid ? '•' : ' ';
+                const when = formatRelativeTime(s.mtime);
+                return `${idx}. ${marker} ${escapeHtml(when)} — ${escapeHtml(s.preview)}`;
+            });
+
+            const reply =
+                'Recent sessions (newest first):\n\n' +
+                lines.join('\n') +
+                '\n\nUse <code>/resume &lt;n&gt;</code> to switch this chat to a previous session.';
+
+            await ctx.reply(reply, { parse_mode: 'HTML' });
+        });
+
+        this.bot.command('resume', async (ctx) => {
+            const chatId = ctx.chat?.id;
+            if (!chatId) return;
+            if (!this.db) {
+                await ctx.reply('Database not connected.');
+                return;
+            }
+
+            const text = ctx.message?.text || '';
+            const arg = text.replace(/^\/resume\s*/, '').trim();
+            const n = Number.parseInt(arg, 10);
+            if (!arg || !Number.isFinite(n) || n < 1) {
+                await ctx.reply('Usage: /resume <n> — see /history for the list.');
+                return;
+            }
+
+            let sessions;
+            try {
+                sessions = await listRecentSessions({ vaultPath: this.workingDir, limit: 10 });
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to list recent sessions');
+                await ctx.reply('Failed to read session history.');
+                return;
+            }
+
+            if (n > sessions.length) {
+                await ctx.reply(`Only ${sessions.length} session(s) available. Use /history to see them.`);
+                return;
+            }
+
+            const picked = sessions[n - 1];
+            try {
+                this.db.saveSessionId(chatId, picked.uuid);
+            } catch (e) {
+                this.logger?.error({ err: e }, 'Failed to save session ID');
+                await ctx.reply('Failed to switch session.');
+                return;
+            }
+
+            await ctx.reply(
+                `Switched to session <code>${picked.uuid}</code>.\n` +
+                `Send your next message to continue from where it left off.`,
                 { parse_mode: 'HTML' }
             );
         });
@@ -688,6 +775,8 @@ export class TelegramBot {
                 { command: 'start', description: 'Start the bot' },
                 { command: 'help', description: 'Show commands and examples' },
                 { command: 'session', description: 'Show current Claude session' },
+                { command: 'history', description: 'List recent sessions for this vault' },
+                { command: 'resume', description: 'Resume a session by number (see /history)' },
                 { command: 'clear', description: 'Clear conversation and session' },
                 { command: 'model', description: 'Show or set model/alias' },
                 { command: 'provider', description: 'Show or set AI provider' },

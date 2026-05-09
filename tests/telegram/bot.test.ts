@@ -588,6 +588,8 @@ describe('TelegramBot', () => {
             { command: 'start', description: 'Start the bot' },
             { command: 'help', description: 'Show commands and examples' },
             { command: 'session', description: 'Show current Claude session' },
+            { command: 'history', description: 'List recent sessions for this vault' },
+            { command: 'resume', description: 'Resume a session by number (see /history)' },
             { command: 'clear', description: 'Clear conversation and session' },
             { command: 'model', description: 'Show or set model/alias' },
             { command: 'provider', description: 'Show or set AI provider' },

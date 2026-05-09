@@ -268,7 +268,7 @@ export class CronScheduler {
             // Context injection: save as assistant message for Telegram context
             const chatId = this.config.chatId;
             if (chatId && result.text.trim()) {
-                this.config.db.saveMessage(chatId, 'assistant', `[Background: ${job.name}]\n\n${result.text}`);
+                this.config.db.saveMessage(chatId, 'assistant', `[Background: ${job.name}]\n\n${result.text}`, 'cron');
             }
 
             // Route output

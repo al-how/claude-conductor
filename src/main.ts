@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { loadConfig } from './config/loader.js';
+import type { EnabledVoiceConfig } from './config/schema.js';
 import { createLogger } from './logger.js';
 import { registerHealthRoute } from './server/health.js';
 import { registerCronRoutes } from './server/cron-routes.js';
@@ -163,6 +164,29 @@ export async function main() {
     registerSettingsRoutes(app, config);
     // Skills routes
     registerSkillsRoutes(app);
+
+    // Voice route (Siri/iOS Shortcut audio chat)
+    if (config.voice?.enabled) {
+        try {
+            const fastifyMultipart = (await import('@fastify/multipart')).default;
+            await app.register(fastifyMultipart, { limits: { fileSize: config.voice.max_audio_bytes } });
+            const { registerVoiceRoutes } = await import('./voice/route.js');
+            registerVoiceRoutes(app, {
+                db: db!,
+                dispatcher,
+                voice: config.voice as EnabledVoiceConfig,
+                telegram: config.telegram,
+                vaultPath: config.vault_path,
+                logger,
+                globalModel: config.model,
+                globalProvider: config.provider,
+                ollamaConfig: config.ollama,
+                openRouterConfig: config.openrouter,
+            });
+        } catch (err) {
+            logger.error({ err }, 'Failed to register voice route — continuing without it');
+        }
+    }
 
     // Write runtime instructions for Claude Code
     try {

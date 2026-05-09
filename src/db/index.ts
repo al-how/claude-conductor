@@ -2,12 +2,15 @@ import Database from 'better-sqlite3';
 
 import type { Logger } from 'pino';
 
+export type ConversationSource = 'telegram' | 'cron' | 'voice' | 'webhook';
+
 export interface ConversationMessage {
     id: number;
     chat_id: number;
     role: 'user' | 'assistant';
     content: string;
     created_at: string;
+    source?: ConversationSource;
 }
 
 export class DatabaseManager {
@@ -44,6 +47,7 @@ export class DatabaseManager {
           chat_id INTEGER NOT NULL,
           role TEXT CHECK(role IN ('user', 'assistant')) NOT NULL,
           content TEXT NOT NULL,
+          source TEXT DEFAULT 'telegram',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_conversations_chat_id ON conversations(chat_id);
@@ -136,13 +140,25 @@ export class DatabaseManager {
             this.db.exec('ALTER TABLE cron_executions ADD COLUMN cost_usd REAL DEFAULT NULL');
             this.logger?.info('Migration: added cost_usd column to cron_executions');
         }
+
+        // Add source column to conversations if it doesn't exist
+        const convCols = this.db.pragma('table_info(conversations)') as { name: string }[];
+        if (!convCols.some(c => c.name === 'source')) {
+            this.db.exec("ALTER TABLE conversations ADD COLUMN source TEXT DEFAULT 'telegram'");
+            this.logger?.info('Migration: added source column to conversations');
+        }
     }
 
-    public saveMessage(chatId: number, role: 'user' | 'assistant', content: string): void {
+    public saveMessage(
+        chatId: number,
+        role: 'user' | 'assistant',
+        content: string,
+        source: ConversationSource
+    ): void {
         const stmt = this.db.prepare(
-            'INSERT INTO conversations (chat_id, role, content) VALUES (?, ?, ?)'
+            'INSERT INTO conversations (chat_id, role, content, source) VALUES (?, ?, ?, ?)'
         );
-        stmt.run(chatId, role, content);
+        stmt.run(chatId, role, content, source);
     }
 
     public getRecentContext(chatId: number, limit: number = 25): ConversationMessage[] {

@@ -87,6 +87,27 @@ const GoogleMapsConfigSchema = z.object({
     api_key: z.string().min(1),
 });
 
+const VoiceConfigSchema = z.object({
+    enabled: z.boolean().default(false),
+    chat_id: z.number().int().optional(),
+    auth_token: z.string().min(16, 'Voice auth_token must be at least 16 characters').optional(),
+    stt_url: z.string().url().optional(),
+    stt_model: z.string().default('Systran/faster-whisper-small'),
+    tts_url: z.string().url().optional(),
+    tts_model: z.string().default('hexgrad/Kokoro-82M'),
+    tts_voice: z.string().default('af_sky'),
+    stop_words: z.array(z.string()).default(['stop', 'goodbye', 'end chat', 'bye']),
+    max_audio_bytes: z.number().int().min(1024).default(25 * 1024 * 1024),
+    response_max_chars: z.number().int().min(100).max(10000).default(2000),
+}).superRefine((data, ctx) => {
+    if (data.enabled) {
+        if (data.chat_id === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['chat_id'], message: 'Required when voice is enabled' });
+        if (!data.auth_token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['auth_token'], message: 'Required when voice is enabled' });
+        if (!data.stt_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['stt_url'], message: 'Required when voice is enabled' });
+        if (!data.tts_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tts_url'], message: 'Required when voice is enabled' });
+    }
+});
+
 export const ConfigSchema = z.object({
     vault_path: z.string().default('/vault'),
     model: z.string().optional(),
@@ -102,6 +123,7 @@ export const ConfigSchema = z.object({
     google_workspace: GoogleWorkspaceConfigSchema,
     n8n: N8nConfigSchema,
     google_maps: GoogleMapsConfigSchema.optional(),
+    voice: VoiceConfigSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -115,3 +137,10 @@ export type OpenRouterConfig = z.infer<typeof OpenRouterConfigSchema>;
 export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;
 export type N8nConfig = z.infer<typeof N8nConfigSchema>;
 export type GoogleMapsConfig = z.infer<typeof GoogleMapsConfigSchema>;
+export type VoiceConfig = z.infer<typeof VoiceConfigSchema>;
+export type EnabledVoiceConfig = VoiceConfig & {
+    chat_id: number;
+    auth_token: string;
+    stt_url: string;
+    tts_url: string;
+};

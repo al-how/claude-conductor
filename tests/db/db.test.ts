@@ -29,8 +29,8 @@ describe('DatabaseManager', () => {
 
     it('should save and retrieve messages', () => {
         const chatId = 12345;
-        dbManager.saveMessage(chatId, 'user', 'Hello');
-        dbManager.saveMessage(chatId, 'assistant', 'Hi there');
+        dbManager.saveMessage(chatId, 'user', 'Hello', 'telegram');
+        dbManager.saveMessage(chatId, 'assistant', 'Hi there', 'telegram');
 
         const context = dbManager.getRecentContext(chatId);
         expect(context).toHaveLength(2);
@@ -43,7 +43,7 @@ describe('DatabaseManager', () => {
     it('should retrieve recent context', () => {
         const chatId = 123;
         for (let i = 0; i < 30; i++) {
-            dbManager.saveMessage(chatId, i % 2 === 0 ? 'user' : 'assistant', `msg ${i}`);
+            dbManager.saveMessage(chatId, i % 2 === 0 ? 'user' : 'assistant', `msg ${i}`, 'telegram');
         }
 
         const context = dbManager.getRecentContext(chatId, 10);
@@ -124,7 +124,7 @@ describe('DatabaseManager', () => {
     it('should limit context size', () => {
         const chatId = 67890;
         for (let i = 0; i < 10; i++) {
-            dbManager.saveMessage(chatId, 'user', `msg ${i}`);
+            dbManager.saveMessage(chatId, 'user', `msg ${i}`, 'telegram');
         }
 
         const context = dbManager.getRecentContext(chatId, 5);
@@ -160,8 +160,8 @@ describe('DatabaseManager', () => {
     });
 
     it('should separate conversations by chat_id', () => {
-        dbManager.saveMessage(1, 'user', 'User 1');
-        dbManager.saveMessage(2, 'user', 'User 2');
+        dbManager.saveMessage(1, 'user', 'User 1', 'telegram');
+        dbManager.saveMessage(2, 'user', 'User 2', 'telegram');
 
         const context1 = dbManager.getRecentContext(1);
         expect(context1).toHaveLength(1);

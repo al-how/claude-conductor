@@ -483,7 +483,7 @@ export class TelegramBot {
         // Save user message
         if (this.db) {
             try {
-                this.db.saveMessage(ctx.chat!.id, 'user', text);
+                this.db.saveMessage(ctx.chat!.id, 'user', text, 'telegram');
             } catch (e) {
                 this.logger?.error({ err: e }, 'Failed to save message to DB');
             }
@@ -690,7 +690,7 @@ export class TelegramBot {
 
                 if (this.db) {
                     try {
-                        this.db.saveMessage(ctx.chat!.id, 'assistant', responseText);
+                        this.db.saveMessage(ctx.chat!.id, 'assistant', responseText, 'telegram');
                     } catch (e) {
                         this.logger?.error({ err: e }, 'Failed to save assistant message to DB');
                     }

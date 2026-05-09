@@ -3,7 +3,7 @@ import { invokeClaude, type ClaudeInvokeOptions, type ClaudeResult } from '../cl
 
 export interface Task extends ClaudeInvokeOptions {
     id: string; // unique ID for tracking
-    source: 'telegram' | 'cron' | 'webhook';
+    source: 'telegram' | 'cron' | 'webhook' | 'voice';
     onComplete?: (result: ClaudeResult) => Promise<void>;
     onError?: (error: Error) => Promise<void>;
 }

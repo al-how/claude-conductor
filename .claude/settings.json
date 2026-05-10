@@ -1,4 +1,15 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@192.168.1.138 \"docker ps -a --filter name=claude-conductor --format 'table {{.Names}}\\\\t{{.Status}}\\\\t{{.Image}}'\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@192.168.1.138 \"docker logs --tail 120 claude-conductor 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@192.168.1.138 \"docker inspect claude-conductor --format '{{.Config.Image}} | {{.Image}} | {{.State.ExitCode}} | {{.State.Error}}' && docker image inspect ghcr.io/al-how/claude-conductor:latest --format '{{index .Config.Labels \\\\\"org.opencontainers.image.revision\\\\\"}} | created {{.Created}}' 2>&1 | head -5\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@192.168.1.138 \"docker inspect claude-conductor --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}' | grep -i config\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@192.168.1.138 \"awk '/^voice:/,/^[a-z]/' /mnt/user/appdata/claude-conductor/config/config.yaml | head -40\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@192.168.1.138 \"grep -nE '^\\(voice|[a-z_]+\\):' /mnt/user/appdata/claude-conductor/config/config.yaml; echo '---'; awk '/^voice:/{flag=1;next}/^[a-z_]+:/{flag=0}flag' /mnt/user/appdata/claude-conductor/config/config.yaml\")",
+      "Bash(npx vitest *)"
+    ]
+  },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,

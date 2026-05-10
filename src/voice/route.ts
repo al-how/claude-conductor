@@ -41,11 +41,10 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
     const { db, dispatcher, voice, vaultPath, logger, globalModel, globalProvider, ollamaConfig, openRouterConfig } = deps;
 
     app.post('/voice/turn', async (request, reply) => {
-        if (voice.auth_token) {
-            const auth = request.headers.authorization ?? '';
-            if (auth !== `Bearer ${voice.auth_token}`) {
-                return reply.status(401).send({ error: 'unauthorized' });
-            }
+        const auth = request.headers.authorization ?? '';
+        const expected = `Bearer ${voice.auth_token}`;
+        if (auth !== expected) {
+            return reply.status(401).send({ error: 'unauthorized' });
         }
 
         let filePart: Awaited<ReturnType<typeof request.file>>;

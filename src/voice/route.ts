@@ -37,10 +37,29 @@ function buildBootstrapPrompt(db: DatabaseManager, chatId: number, transcript: s
     return `<conversation_history>\n${block}\n</conversation_history>\n\nHuman: ${transcript}`;
 }
 
+// Raw binary audio MIME types sent by iOS Shortcuts "Get contents of URL" with body type "File"
+const RAW_AUDIO_TYPES = [
+    'audio/m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav',
+    'audio/aac', 'audio/ogg', 'audio/webm', 'application/octet-stream',
+];
+
+function mimeToExt(mime: string): string {
+    if (mime === 'audio/mp4' || mime === 'audio/m4a') return 'm4a';
+    if (mime === 'audio/mpeg') return 'mp3';
+    if (mime === 'audio/wav') return 'wav';
+    if (mime === 'audio/aac') return 'aac';
+    if (mime === 'audio/ogg') return 'ogg';
+    if (mime === 'audio/webm') return 'webm';
+    return 'm4a';
+}
+
 export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps): void {
     const { db, dispatcher, voice, vaultPath, logger, globalModel, globalProvider, ollamaConfig, openRouterConfig } = deps;
 
-    app.post('/voice/turn', async (request, reply) => {
+    // Support raw binary uploads so iOS Shortcuts can POST audio directly without multipart encoding
+    app.addContentTypeParser(RAW_AUDIO_TYPES, { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
+
+    app.post('/voice/turn', { bodyLimit: voice.max_audio_bytes }, async (request, reply) => {
         if (voice.auth_token) {
             const auth = request.headers.authorization ?? '';
             if (auth !== `Bearer ${voice.auth_token}`) {
@@ -48,28 +67,42 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
             }
         }
 
-        let filePart: Awaited<ReturnType<typeof request.file>>;
-        try {
-            filePart = await request.file();
-        } catch (err) {
-            logger.warn({ err }, 'voice: multipart parse failed');
-            return reply.status(400).send({ error: 'invalid multipart body' });
-        }
-        if (!filePart) {
-            return reply.status(400).send({ error: 'missing audio file (field name: audio)' });
-        }
-
         let audioBuffer: Buffer;
-        try {
-            audioBuffer = await filePart.toBuffer();
-        } catch (err) {
-            // toBuffer throws on size limit
-            logger.warn({ err }, 'voice: audio buffer read failed');
-            return reply.status(413).send({ error: 'audio too large' });
-        }
+        let filename: string;
+        let mimeType: string;
 
-        const filename = filePart.filename || 'audio.m4a';
-        const mimeType = filePart.mimetype || 'audio/m4a';
+        const contentType = (request.headers['content-type'] ?? '').split(';')[0].trim();
+
+        if (contentType.startsWith('multipart/')) {
+            let filePart: Awaited<ReturnType<typeof request.file>>;
+            try {
+                filePart = await request.file();
+            } catch (err) {
+                logger.warn({ err }, 'voice: multipart parse failed');
+                return reply.status(400).send({ error: 'invalid multipart body' });
+            }
+            if (!filePart) {
+                return reply.status(400).send({ error: 'missing audio file (field name: audio)' });
+            }
+            try {
+                audioBuffer = await filePart.toBuffer();
+            } catch (err) {
+                // toBuffer throws on size limit
+                logger.warn({ err }, 'voice: audio buffer read failed');
+                return reply.status(413).send({ error: 'audio too large' });
+            }
+            filename = filePart.filename || 'audio.m4a';
+            mimeType = filePart.mimetype || 'audio/m4a';
+        } else {
+            // Raw binary body — iOS Shortcuts sends the audio file directly
+            const body = request.body as Buffer | null;
+            if (!body || body.length === 0) {
+                return reply.status(400).send({ error: 'missing audio data' });
+            }
+            audioBuffer = body;
+            mimeType = contentType || 'audio/m4a';
+            filename = `audio.${mimeToExt(mimeType)}`;
+        }
 
         let transcript: string;
         try {

@@ -60,10 +60,12 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
     app.addContentTypeParser(RAW_AUDIO_TYPES, { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
 
     app.post('/voice/turn', { bodyLimit: voice.max_audio_bytes }, async (request, reply) => {
-        const auth = request.headers.authorization ?? '';
-        const expected = `Bearer ${voice.auth_token}`;
-        if (auth !== expected) {
-            return reply.status(401).send({ error: 'unauthorized' });
+        if (voice.auth_token) {
+            const auth = request.headers.authorization ?? '';
+            const expected = `Bearer ${voice.auth_token}`;
+            if (auth !== expected) {
+                return reply.status(401).send({ error: 'unauthorized' });
+            }
         }
 
         let audioBuffer: Buffer;

@@ -1,17 +1,25 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Logger } from 'pino';
-import type { GoogleWorkspaceConfig, N8nConfig, GoogleMapsConfig } from '../config/schema.js';
+import type { GoogleWorkspaceConfig, N8nConfig, GoogleMapsConfig, HomeAssistantConfig } from '../config/schema.js';
 
 const CLAUDE_CONFIG_PATH = '/home/claude/.claude.json';
 
+interface StdioMcpEntry {
+    type: 'stdio';
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+}
+
+interface HttpMcpEntry {
+    type: 'sse' | 'http';
+    url: string;
+    headers?: Record<string, string>;
+}
+
 interface ClaudeConfig {
-    mcpServers?: Record<string, {
-        type: string;
-        command: string;
-        args: string[];
-        env?: Record<string, string>;
-    }>;
+    mcpServers?: Record<string, StdioMcpEntry | HttpMcpEntry>;
     [key: string]: unknown;
 }
 
@@ -228,4 +236,51 @@ export function registerGoogleMapsMcp(mapsConfig: GoogleMapsConfig, logger: Logg
 
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
     logger.info({ configPath }, 'Google Maps MCP server registered in Claude config');
+}
+
+/**
+ * Register (or remove) the Home Assistant MCP server in Claude Code's user-scope config.
+ * Uses HTTP/SSE transport — no subprocess, connects directly to the HA instance.
+ * Idempotent — safe to call every startup.
+ */
+export function registerHomeAssistantMcp(haConfig: HomeAssistantConfig, logger: Logger): void {
+    const configPath = CLAUDE_CONFIG_PATH;
+    const configDir = dirname(configPath);
+
+    if (!existsSync(configDir)) {
+        logger.info({ configDir }, 'Claude config directory not found — skipping Home Assistant MCP registration');
+        return;
+    }
+
+    let config: ClaudeConfig = {};
+    if (existsSync(configPath)) {
+        try {
+            const raw = readFileSync(configPath, 'utf-8');
+            config = JSON.parse(raw) as ClaudeConfig;
+        } catch (err) {
+            logger.warn({ err, configPath }, 'Failed to parse existing .claude.json — will create new');
+        }
+    }
+
+    if (!config.mcpServers) {
+        config.mcpServers = {};
+    }
+
+    if (!haConfig.enabled) {
+        if (config.mcpServers['home-assistant']) {
+            delete config.mcpServers['home-assistant'];
+            writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+            logger.info('Home Assistant MCP disabled — removed entry from Claude config');
+        }
+        return;
+    }
+
+    config.mcpServers['home-assistant'] = {
+        type: 'sse',
+        url: `${haConfig.url.replace(/\/$/, '')}/api/mcp`,
+        headers: { Authorization: `Bearer ${haConfig.token}` },
+    };
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    logger.info({ configPath, url: haConfig.url }, 'Home Assistant MCP server registered in Claude config');
 }

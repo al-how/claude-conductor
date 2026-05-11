@@ -87,6 +87,12 @@ const GoogleMapsConfigSchema = z.object({
     api_key: z.string().min(1),
 });
 
+const HomeAssistantConfigSchema = z.object({
+    enabled: z.boolean().default(false),
+    url: z.string().url(),
+    token: z.string().min(1),
+});
+
 const VoiceConfigSchema = z.object({
     enabled: z.boolean().default(false),
     chat_id: z.number().int().optional(),
@@ -122,6 +128,7 @@ export const ConfigSchema = z.object({
     google_workspace: GoogleWorkspaceConfigSchema,
     n8n: N8nConfigSchema,
     google_maps: GoogleMapsConfigSchema.optional(),
+    home_assistant: HomeAssistantConfigSchema.optional(),
     voice: VoiceConfigSchema.optional(),
 });
 
@@ -136,6 +143,7 @@ export type OpenRouterConfig = z.infer<typeof OpenRouterConfigSchema>;
 export type GoogleWorkspaceConfig = z.infer<typeof GoogleWorkspaceConfigSchema>;
 export type N8nConfig = z.infer<typeof N8nConfigSchema>;
 export type GoogleMapsConfig = z.infer<typeof GoogleMapsConfigSchema>;
+export type HomeAssistantConfig = z.infer<typeof HomeAssistantConfigSchema>;
 export type VoiceConfig = z.infer<typeof VoiceConfigSchema>;
 export type EnabledVoiceConfig = VoiceConfig & {
     chat_id: number;

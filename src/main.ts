@@ -14,7 +14,7 @@ import { DatabaseManager } from './db/index.js';
 import { Dispatcher } from './dispatcher/index.js';
 import { TelegramBot } from './telegram/bot.js';
 import { CronScheduler } from './cron/scheduler.js';
-import { registerMcpServer, registerGoogleWorkspaceMcp, registerN8nMcp, registerGoogleMapsMcp } from './mcp/register.js';
+import { registerMcpServer, registerGoogleWorkspaceMcp, registerN8nMcp, registerGoogleMapsMcp, registerHomeAssistantMcp } from './mcp/register.js';
 
 export async function main() {
     const logger = createLogger({
@@ -80,6 +80,15 @@ export async function main() {
             registerGoogleMapsMcp(config.google_maps, logger);
         } catch (err) {
             logger.warn({ err }, 'Failed to register Google Maps MCP — continuing without it');
+        }
+    }
+
+    // Register Home Assistant MCP (device control, entity state, automations)
+    if (config.home_assistant) {
+        try {
+            registerHomeAssistantMcp(config.home_assistant, logger);
+        } catch (err) {
+            logger.warn({ err }, 'Failed to register Home Assistant MCP — continuing without it');
         }
     }
 

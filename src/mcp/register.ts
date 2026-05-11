@@ -277,7 +277,7 @@ export function registerHomeAssistantMcp(haConfig: HomeAssistantConfig, logger: 
 
     config.mcpServers['home-assistant'] = {
         type: 'sse',
-        url: `${haConfig.url.replace(/\/$/, '')}/api/mcp`,
+        url: `${haConfig.url.replace(/\/$/, '')}/mcp_server/sse`,
         headers: { Authorization: `Bearer ${haConfig.token}` },
     };
 
